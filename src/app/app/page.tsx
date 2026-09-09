@@ -91,6 +91,16 @@ export default async function AppHomePage() {
             contrataciones y evaluaciones.
           </p>
         </Link>
+
+        <Link
+          href="/app/nomina"
+          className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:border-gray-300"
+        >
+          <h2 className="font-medium text-gray-900">Nómina</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            Genera periodos de nómina con SFS, AFP, SRL, INFOTEP e ISR de referencia.
+          </p>
+        </Link>
       </div>
     </div>
   );

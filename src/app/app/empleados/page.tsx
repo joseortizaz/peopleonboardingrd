@@ -1,13 +1,18 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentTenant, isManagerRole } from "@/lib/supabase/tenant";
-import { createEmployee, deleteEmployee } from "./actions";
+import { createEmployee, deleteEmployee, updateEmployeeSalary } from "./actions";
 
 const statusLabel: Record<string, string> = {
   active: "Activo",
   on_leave: "De permiso",
   terminated: "Baja",
 };
+
+const currency = new Intl.NumberFormat("es-DO", {
+  style: "currency",
+  currency: "DOP",
+});
 
 export default async function EmpleadosPage() {
   const tenant = await getCurrentTenant();
@@ -19,7 +24,7 @@ export default async function EmpleadosPage() {
   const [{ data: employees }, { data: departments }] = await Promise.all([
     supabase
       .from("employees")
-      .select("id, full_name, position, hire_date, status, department_id, email")
+      .select("id, full_name, position, hire_date, status, department_id, email, monthly_salary")
       .eq("tenant_id", tenant.id)
       .order("created_at", { ascending: false }),
     supabase
@@ -33,7 +38,7 @@ export default async function EmpleadosPage() {
     departments?.find((d) => d.id === id)?.name ?? "—";
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-10">
+    <div className="mx-auto max-w-5xl px-6 py-10">
       <h1 className="text-xl font-semibold text-gray-900">
         Empleados — {tenant.name}
       </h1>
@@ -83,6 +88,14 @@ export default async function EmpleadosPage() {
             type="date"
             className="rounded-md border border-gray-300 px-3 py-2 text-sm"
           />
+          <input
+            name="monthly_salary"
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder="Salario mensual (RD$)"
+            className="min-w-[170px] rounded-md border border-gray-300 px-3 py-2 text-sm"
+          />
           <button
             type="submit"
             className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
@@ -90,6 +103,10 @@ export default async function EmpleadosPage() {
             Agregar
           </button>
         </form>
+        <p className="mt-2 text-xs text-gray-400">
+          El salario mensual es opcional al crear, pero es necesario para
+          incluir al empleado en un periodo de nómina.
+        </p>
       </div>
 
       <div className="mt-6 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -100,6 +117,7 @@ export default async function EmpleadosPage() {
               <th className="px-4 py-2">Correo</th>
               <th className="px-4 py-2">Departamento</th>
               <th className="px-4 py-2">Puesto</th>
+              <th className="px-4 py-2">Salario mensual</th>
               <th className="px-4 py-2">Estado</th>
               <th className="px-4 py-2"></th>
             </tr>
@@ -107,13 +125,14 @@ export default async function EmpleadosPage() {
           <tbody className="divide-y divide-gray-100">
             {(employees ?? []).length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-gray-500">
+                <td colSpan={7} className="px-4 py-6 text-center text-gray-500">
                   Aún no hay empleados registrados.
                 </td>
               </tr>
             )}
             {(employees ?? []).map((e) => {
               const remove = deleteEmployee.bind(null, e.id);
+              const updateSalary = updateEmployeeSalary.bind(null, e.id);
               return (
                 <tr key={e.id}>
                   <td className="px-4 py-2 text-gray-900">{e.full_name}</td>
@@ -122,6 +141,30 @@ export default async function EmpleadosPage() {
                     {departmentName(e.department_id)}
                   </td>
                   <td className="px-4 py-2 text-gray-600">{e.position ?? "—"}</td>
+                  <td className="px-4 py-2 text-gray-600">
+                    <form action={updateSalary} className="flex items-center gap-1">
+                      <input
+                        name="monthly_salary"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        defaultValue={e.monthly_salary ?? ""}
+                        placeholder="Sin registrar"
+                        className="w-28 rounded-md border border-gray-300 px-2 py-1 text-xs"
+                      />
+                      <button
+                        type="submit"
+                        className="text-xs text-gray-500 hover:text-gray-900 hover:underline"
+                      >
+                        Guardar
+                      </button>
+                    </form>
+                    {e.monthly_salary != null && (
+                      <p className="mt-0.5 text-xs text-gray-400">
+                        {currency.format(Number(e.monthly_salary))}
+                      </p>
+                    )}
+                  </td>
                   <td className="px-4 py-2 text-gray-600">
                     {statusLabel[e.status] ?? e.status}
                   </td>

@@ -63,6 +63,12 @@ export default async function AppLayout({
                   Bajas
                 </Link>
                 <Link
+                  href="/app/nomina"
+                  className="text-sm text-gray-600 hover:text-gray-900"
+                >
+                  Nómina
+                </Link>
+                <Link
                   href="/app/portal-cliente/gestionar"
                   className="text-sm text-gray-600 hover:text-gray-900"
                 >
