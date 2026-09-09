@@ -56,6 +56,12 @@ export default async function AppLayout({
                 >
                   Incorporación
                 </Link>
+                <Link
+                  href="/app/bajas"
+                  className="text-sm text-gray-600 hover:text-gray-900"
+                >
+                  Bajas
+                </Link>
               </>
             )}
             <Link

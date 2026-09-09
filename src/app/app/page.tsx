@@ -70,6 +70,16 @@ export default async function AppHomePage() {
             Plan de incorporación (30-60-90) para cada nuevo ingreso.
           </p>
         </Link>
+
+        <Link
+          href="/app/bajas"
+          className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:border-gray-300"
+        >
+          <h2 className="font-medium text-gray-900">Bajas</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            Checklist de salida y cálculo de referencia de liquidación.
+          </p>
+        </Link>
       </div>
     </div>
   );
