@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getCurrentTenant } from "@/lib/supabase/tenant";
+import { getCurrentTenant, isManagerRole } from "@/lib/supabase/tenant";
 import { createDepartment, deleteDepartment } from "./actions";
 
 type Department = {
@@ -63,6 +63,9 @@ export default async function OrganizacionPage() {
 
   if (!tenant) {
     redirect("/app/onboarding");
+  }
+  if (!isManagerRole(tenant.myRole)) {
+    redirect("/app/mi-espacio");
   }
 
   const supabase = await createClient();

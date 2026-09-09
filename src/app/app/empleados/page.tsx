@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getCurrentTenant } from "@/lib/supabase/tenant";
+import { getCurrentTenant, isManagerRole } from "@/lib/supabase/tenant";
 import { createEmployee, deleteEmployee } from "./actions";
 
 const statusLabel: Record<string, string> = {
@@ -12,13 +12,14 @@ const statusLabel: Record<string, string> = {
 export default async function EmpleadosPage() {
   const tenant = await getCurrentTenant();
   if (!tenant) redirect("/app/onboarding");
+  if (!isManagerRole(tenant.myRole)) redirect("/app/mi-espacio");
 
   const supabase = await createClient();
 
   const [{ data: employees }, { data: departments }] = await Promise.all([
     supabase
       .from("employees")
-      .select("id, full_name, position, hire_date, status, department_id")
+      .select("id, full_name, position, hire_date, status, department_id, email")
       .eq("tenant_id", tenant.id)
       .order("created_at", { ascending: false }),
     supabase
@@ -52,6 +53,12 @@ export default async function EmpleadosPage() {
             placeholder="Nombre completo"
             required
             className="min-w-[200px] flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm"
+          />
+          <input
+            name="email"
+            type="email"
+            placeholder="Correo (para su acceso de autoservicio)"
+            className="min-w-[220px] rounded-md border border-gray-300 px-3 py-2 text-sm"
           />
           <select
             name="department_id"
@@ -90,6 +97,7 @@ export default async function EmpleadosPage() {
           <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500">
             <tr>
               <th className="px-4 py-2">Nombre</th>
+              <th className="px-4 py-2">Correo</th>
               <th className="px-4 py-2">Departamento</th>
               <th className="px-4 py-2">Puesto</th>
               <th className="px-4 py-2">Estado</th>
@@ -99,7 +107,7 @@ export default async function EmpleadosPage() {
           <tbody className="divide-y divide-gray-100">
             {(employees ?? []).length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-gray-500">
+                <td colSpan={6} className="px-4 py-6 text-center text-gray-500">
                   Aún no hay empleados registrados.
                 </td>
               </tr>
@@ -109,6 +117,7 @@ export default async function EmpleadosPage() {
               return (
                 <tr key={e.id}>
                   <td className="px-4 py-2 text-gray-900">{e.full_name}</td>
+                  <td className="px-4 py-2 text-gray-600">{e.email ?? "—"}</td>
                   <td className="px-4 py-2 text-gray-600">
                     {departmentName(e.department_id)}
                   </td>

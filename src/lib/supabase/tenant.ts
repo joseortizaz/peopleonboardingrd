@@ -1,15 +1,41 @@
 import { createClient } from "@/lib/supabase/server";
 
+export type MemberRole =
+  | "super_admin"
+  | "account_admin"
+  | "hr_manager"
+  | "supervisor"
+  | "employee"
+  | "client"
+  | "candidate";
+
 export type CurrentTenant = {
   id: string;
   name: string;
   slug: string;
+  accountId: string;
+  myRole: MemberRole | null;
 };
+
+const ROLE_PRIORITY: MemberRole[] = [
+  "super_admin",
+  "account_admin",
+  "hr_manager",
+  "supervisor",
+  "employee",
+  "client",
+  "candidate",
+];
+
+export function isManagerRole(role: MemberRole | null) {
+  return role === "super_admin" || role === "account_admin" || role === "hr_manager";
+}
 
 /**
  * Devuelve el primer tenant accesible para el usuario autenticado
- * (gracias a la policy RLS "tenants_select" solo vienen los que puede ver).
- * null si el usuario aun no pertenece a ninguna cuenta/tenant.
+ * (gracias a la policy RLS "tenants_select" solo vienen los que puede ver)
+ * junto con su rol en ese tenant. null si el usuario aun no pertenece a
+ * ninguna cuenta/tenant.
  */
 export async function getCurrentTenant(): Promise<CurrentTenant | null> {
   const supabase = await createClient();
@@ -20,9 +46,9 @@ export async function getCurrentTenant(): Promise<CurrentTenant | null> {
 
   if (!user) return null;
 
-  const { data, error } = await supabase
+  const { data: tenant, error } = await supabase
     .from("tenants")
-    .select("id, name, slug")
+    .select("id, name, slug, account_id")
     .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();
@@ -32,5 +58,31 @@ export async function getCurrentTenant(): Promise<CurrentTenant | null> {
     return null;
   }
 
-  return data;
+  if (!tenant) return null;
+
+  const { data: memberships } = await supabase
+    .from("memberships")
+    .select("role, tenant_id, account_id")
+    .eq("profile_id", user.id);
+
+  let myRole: MemberRole | null = null;
+  for (const role of ROLE_PRIORITY) {
+    const match = memberships?.find(
+      (m) =>
+        m.role === role &&
+        (m.tenant_id === tenant.id || m.account_id === tenant.account_id)
+    );
+    if (match) {
+      myRole = role;
+      break;
+    }
+  }
+
+  return {
+    id: tenant.id,
+    name: tenant.name,
+    slug: tenant.slug,
+    accountId: tenant.account_id,
+    myRole,
+  };
 }

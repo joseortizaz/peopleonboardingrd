@@ -1,12 +1,16 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getCurrentTenant } from "@/lib/supabase/tenant";
+import { getCurrentTenant, isManagerRole } from "@/lib/supabase/tenant";
 
 export default async function AppHomePage() {
   const tenant = await getCurrentTenant();
 
   if (!tenant) {
     redirect("/app/onboarding");
+  }
+
+  if (!isManagerRole(tenant.myRole)) {
+    redirect("/app/mi-espacio");
   }
 
   return (
@@ -43,7 +47,7 @@ export default async function AppHomePage() {
         >
           <h2 className="font-medium text-gray-900">Empleados</h2>
           <p className="mt-1 text-sm text-gray-500">
-            Registro base de colaboradores.
+            Registro base de colaboradores y acceso a su autoservicio.
           </p>
         </Link>
 

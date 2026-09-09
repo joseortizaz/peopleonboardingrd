@@ -10,6 +10,7 @@ export async function createEmployee(tenantId: string, formData: FormData) {
   const department_id = (formData.get("department_id") as string) || null;
   const position = (formData.get("position") as string)?.trim() || null;
   const hire_date = (formData.get("hire_date") as string) || null;
+  const email = (formData.get("email") as string)?.trim().toLowerCase() || null;
 
   if (!full_name) return;
 
@@ -19,6 +20,7 @@ export async function createEmployee(tenantId: string, formData: FormData) {
     department_id,
     position,
     hire_date,
+    email,
   });
 
   if (error) {
