@@ -36,6 +36,26 @@ export default async function AppHomePage() {
             Vacantes, candidatos y pipeline de reclutamiento.
           </p>
         </Link>
+
+        <Link
+          href="/app/empleados"
+          className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:border-gray-300"
+        >
+          <h2 className="font-medium text-gray-900">Empleados</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            Registro base de colaboradores.
+          </p>
+        </Link>
+
+        <Link
+          href="/app/evaluaciones"
+          className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:border-gray-300"
+        >
+          <h2 className="font-medium text-gray-900">Evaluación de desempeño</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            Plantillas de competencias y evaluaciones 90°/180°/360°.
+          </p>
+        </Link>
       </div>
     </div>
   );

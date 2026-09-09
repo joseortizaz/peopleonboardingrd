@@ -32,6 +32,18 @@ export default async function AppLayout({
             >
               Reclutamiento
             </Link>
+            <Link
+              href="/app/empleados"
+              className="text-sm text-gray-600 hover:text-gray-900"
+            >
+              Empleados
+            </Link>
+            <Link
+              href="/app/evaluaciones"
+              className="text-sm text-gray-600 hover:text-gray-900"
+            >
+              Evaluaciones
+            </Link>
           </nav>
           <div className="flex items-center gap-3">
             <span className="text-sm text-gray-500">{user?.email}</span>
