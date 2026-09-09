@@ -24,6 +24,7 @@ const onboardingStatusLabel: Record<string, string> = {
 export default async function MiEspacioPage() {
   const tenant = await getCurrentTenant();
   if (!tenant) redirect("/app/onboarding");
+  if (tenant.myRole === "client") redirect("/app/portal-cliente");
 
   const supabase = await createClient();
   const {

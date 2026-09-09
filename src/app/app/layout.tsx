@@ -62,14 +62,29 @@ export default async function AppLayout({
                 >
                   Bajas
                 </Link>
+                <Link
+                  href="/app/portal-cliente/gestionar"
+                  className="text-sm text-gray-600 hover:text-gray-900"
+                >
+                  Portal del cliente
+                </Link>
               </>
             )}
-            <Link
-              href="/app/mi-espacio"
-              className="text-sm text-gray-600 hover:text-gray-900"
-            >
-              Mi espacio
-            </Link>
+            {tenant?.myRole === "client" ? (
+              <Link
+                href="/app/portal-cliente"
+                className="text-sm text-gray-600 hover:text-gray-900"
+              >
+                Portal del cliente
+              </Link>
+            ) : (
+              <Link
+                href="/app/mi-espacio"
+                className="text-sm text-gray-600 hover:text-gray-900"
+              >
+                Mi espacio
+              </Link>
+            )}
           </nav>
           <div className="flex items-center gap-3">
             <span className="text-sm text-gray-500">{user?.email}</span>

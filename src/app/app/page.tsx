@@ -10,7 +10,7 @@ export default async function AppHomePage() {
   }
 
   if (!isManagerRole(tenant.myRole)) {
-    redirect("/app/mi-espacio");
+    redirect(tenant.myRole === "client" ? "/app/portal-cliente" : "/app/mi-espacio");
   }
 
   return (
@@ -78,6 +78,17 @@ export default async function AppHomePage() {
           <h2 className="font-medium text-gray-900">Bajas</h2>
           <p className="mt-1 text-sm text-gray-500">
             Checklist de salida y cálculo de referencia de liquidación.
+          </p>
+        </Link>
+
+        <Link
+          href="/app/portal-cliente/gestionar"
+          className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:border-gray-300"
+        >
+          <h2 className="font-medium text-gray-900">Portal del cliente</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            Invita a tu cliente a una vista de solo lectura de vacantes,
+            contrataciones y evaluaciones.
           </p>
         </Link>
       </div>
