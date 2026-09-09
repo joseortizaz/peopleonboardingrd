@@ -125,7 +125,7 @@ as $$
   join public.memberships m on m.account_id = t.account_id
   where m.profile_id = auth.uid()
   union
-  select tenant_id from public.my_tenant_ids()
+  select * from public.my_tenant_ids()
 $$;
 
 create or replace function public.is_super_admin()
