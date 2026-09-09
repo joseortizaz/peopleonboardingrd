@@ -25,8 +25,7 @@ export async function startOffboardingProcess(formData: FormData) {
 
   if (error || !data) {
     console.error("startOffboardingProcess error:", error?.message);
-    revalidatePath("/app/bajas");
-    return;
+    redirect(`/app/bajas?error=${encodeURIComponent(error?.message ?? "Error desconocido")}`);
   }
 
   redirect(`/app/bajas/${data}`);

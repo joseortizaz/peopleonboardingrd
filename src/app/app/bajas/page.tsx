@@ -22,7 +22,12 @@ const currency = new Intl.NumberFormat("es-DO", {
   currency: "DOP",
 });
 
-export default async function BajasPage() {
+export default async function BajasPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const { error: errorMessage } = await searchParams;
   const tenant = await getCurrentTenant();
   if (!tenant) redirect("/app/onboarding");
   if (!isManagerRole(tenant.myRole)) redirect("/app/mi-espacio");
@@ -60,6 +65,12 @@ export default async function BajasPage() {
         dominicano. No sustituye la validacion de un contador o gestor
         laboral antes de pagar una liquidacion real.
       </p>
+
+      {errorMessage && (
+        <div className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          {errorMessage}
+        </div>
+      )}
 
       <div className="mt-6 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
         <h2 className="text-sm font-medium text-gray-700">Nueva baja</h2>
