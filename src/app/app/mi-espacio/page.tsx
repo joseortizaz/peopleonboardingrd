@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentTenant } from "@/lib/supabase/tenant";
+import { toggleOnboardingTask } from "../incorporacion/actions";
 
 const statusLabel: Record<string, string> = {
   active: "Activo",
@@ -13,6 +14,11 @@ const typeLabel: Record<string, string> = {
   "90": "90°",
   "180": "180°",
   "360": "360°",
+};
+
+const onboardingStatusLabel: Record<string, string> = {
+  en_progreso: "En progreso",
+  completado: "Completado",
 };
 
 export default async function MiEspacioPage() {
@@ -58,12 +64,34 @@ export default async function MiEspacioPage() {
       ).data
     : null;
 
-  const { data: evaluations } = await supabase
-    .from("evaluations")
-    .select("id, type, status, overall_score, completed_at, evaluation_templates(name)")
-    .eq("employee_id", employee.id)
-    .eq("status", "completada")
-    .order("completed_at", { ascending: false });
+  const [{ data: evaluations }, { data: onboardingProcess }] = await Promise.all([
+    supabase
+      .from("evaluations")
+      .select("id, type, status, overall_score, completed_at, evaluation_templates(name)")
+      .eq("employee_id", employee.id)
+      .eq("status", "completada")
+      .order("completed_at", { ascending: false }),
+    supabase
+      .from("onboarding_processes")
+      .select("id, status, started_at, template_name")
+      .eq("employee_id", employee.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  const onboardingTasks = onboardingProcess
+    ? (
+        await supabase
+          .from("onboarding_tasks")
+          .select("id, title, description, due_date, responsible, status")
+          .eq("process_id", onboardingProcess.id)
+          .order("due_date", { ascending: true })
+          .order("order_index", { ascending: true })
+      ).data
+    : null;
+
+  const revalidateTo = "/app/mi-espacio";
 
   return (
     <div className="mx-auto max-w-2xl px-6 py-10">
@@ -89,6 +117,91 @@ export default async function MiEspacioPage() {
           </dd>
         </dl>
       </div>
+
+      {onboardingProcess && (
+        <div className="mt-6 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+          <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+            <div>
+              <h2 className="text-sm font-medium text-gray-700">
+                Mi plan de incorporación
+              </h2>
+              <p className="text-xs text-gray-500">
+                {onboardingProcess.template_name ?? "—"} · Inicio{" "}
+                {onboardingProcess.started_at}
+              </p>
+            </div>
+            <span
+              className={`rounded-full px-3 py-1 text-xs font-medium ${
+                onboardingProcess.status === "completado"
+                  ? "bg-emerald-100 text-emerald-800"
+                  : "bg-gray-900 text-white"
+              }`}
+            >
+              {onboardingStatusLabel[onboardingProcess.status] ??
+                onboardingProcess.status}
+            </span>
+          </div>
+          <div className="divide-y divide-gray-100">
+            {(onboardingTasks ?? []).map((t) => {
+              const isDone = t.status === "completada";
+              const canToggle = t.responsible === "empleado";
+              const toggle = toggleOnboardingTask.bind(
+                null,
+                t.id,
+                isDone ? "pendiente" : "completada",
+                revalidateTo
+              );
+              return (
+                <div key={t.id} className="flex items-start gap-3 px-6 py-4">
+                  {canToggle ? (
+                    <form action={toggle} className="pt-0.5">
+                      <button
+                        type="submit"
+                        aria-label={
+                          isDone ? "Marcar como pendiente" : "Marcar como completada"
+                        }
+                        className={`flex h-5 w-5 items-center justify-center rounded border text-xs ${
+                          isDone
+                            ? "border-emerald-600 bg-emerald-600 text-white"
+                            : "border-gray-300 bg-white text-transparent"
+                        }`}
+                      >
+                        ✓
+                      </button>
+                    </form>
+                  ) : (
+                    <span
+                      className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded border text-xs ${
+                        isDone
+                          ? "border-emerald-600 bg-emerald-600 text-white"
+                          : "border-gray-200 bg-gray-50 text-transparent"
+                      }`}
+                    >
+                      ✓
+                    </span>
+                  )}
+                  <div className="flex-1">
+                    <p
+                      className={`text-sm font-medium ${
+                        isDone ? "text-gray-400 line-through" : "text-gray-900"
+                      }`}
+                    >
+                      {t.title}
+                    </p>
+                    {t.description && (
+                      <p className="text-xs text-gray-500">{t.description}</p>
+                    )}
+                    <p className="mt-1 text-xs text-gray-400">
+                      {t.due_date ? `Vence ${t.due_date}` : "Sin fecha"}
+                      {!canToggle && " · A cargo de RR.HH."}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="mt-6 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         <div className="border-b border-gray-100 px-6 py-4">

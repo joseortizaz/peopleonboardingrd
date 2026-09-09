@@ -50,6 +50,12 @@ export default async function AppLayout({
                 >
                   Evaluaciones
                 </Link>
+                <Link
+                  href="/app/incorporacion"
+                  className="text-sm text-gray-600 hover:text-gray-900"
+                >
+                  Incorporación
+                </Link>
               </>
             )}
             <Link

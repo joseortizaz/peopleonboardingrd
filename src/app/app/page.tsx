@@ -60,6 +60,16 @@ export default async function AppHomePage() {
             Plantillas de competencias y evaluaciones 90°/180°/360°.
           </p>
         </Link>
+
+        <Link
+          href="/app/incorporacion"
+          className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:border-gray-300"
+        >
+          <h2 className="font-medium text-gray-900">Incorporación</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            Plan de incorporación (30-60-90) para cada nuevo ingreso.
+          </p>
+        </Link>
       </div>
     </div>
   );
