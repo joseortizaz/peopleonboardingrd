@@ -1,35 +1,36 @@
-import { createClient } from "@/lib/supabase/server";
-import { logout } from "../login/actions";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { getCurrentTenant } from "@/lib/supabase/tenant";
 
 export default async function AppHomePage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const tenant = await getCurrentTenant();
+
+  if (!tenant) {
+    redirect("/app/onboarding");
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50 px-6 py-10">
-      <div className="mx-auto max-w-3xl">
-        <div className="flex items-center justify-between">
-          <h1 className="text-xl font-semibold text-gray-900">
-            Panel — People Onboarding RD
-          </h1>
-          <form action={logout}>
-            <button
-              type="submit"
-              className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100"
-            >
-              Cerrar sesión
-            </button>
-          </form>
-        </div>
+    <div className="mx-auto max-w-3xl px-6 py-10">
+      <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+        <p className="text-sm text-gray-500">Cuenta activa</p>
+        <p className="mt-1 text-lg font-medium text-gray-900">{tenant.name}</p>
+      </div>
 
-        <div className="mt-8 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-          <p className="text-sm text-gray-500">Sesión activa</p>
-          <p className="mt-1 text-lg font-medium text-gray-900">{user?.email}</p>
-          <p className="mt-4 text-sm text-gray-500">
-            Aquí vivirá el resto de la suite: estructura organizacional, ATS,
-            evaluación de desempeño y, más adelante, nómina y autoservicio.
+      <div className="mt-6 grid gap-4 sm:grid-cols-2">
+        <Link
+          href="/app/organizacion"
+          className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:border-gray-300"
+        >
+          <h2 className="font-medium text-gray-900">Estructura organizacional</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            Crea y organiza los departamentos de tu empresa.
+          </p>
+        </Link>
+
+        <div className="rounded-xl border border-dashed border-gray-300 bg-white p-6 text-gray-400">
+          <h2 className="font-medium">ATS — próximamente</h2>
+          <p className="mt-1 text-sm">
+            Vacantes, candidatos y pipeline de reclutamiento.
           </p>
         </div>
       </div>
