@@ -27,12 +27,15 @@ export default async function AppHomePage() {
           </p>
         </Link>
 
-        <div className="rounded-xl border border-dashed border-gray-300 bg-white p-6 text-gray-400">
-          <h2 className="font-medium">ATS — próximamente</h2>
-          <p className="mt-1 text-sm">
+        <Link
+          href="/app/ats"
+          className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:border-gray-300"
+        >
+          <h2 className="font-medium text-gray-900">Reclutamiento (ATS)</h2>
+          <p className="mt-1 text-sm text-gray-500">
             Vacantes, candidatos y pipeline de reclutamiento.
           </p>
-        </div>
+        </Link>
       </div>
     </div>
   );
