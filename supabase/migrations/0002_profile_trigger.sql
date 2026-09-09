@@ -23,5 +23,6 @@ create trigger on_auth_user_created
 
 -- Permite que un usuario recien registrado se inserte a si mismo su propio
 -- perfil (respaldo por si el trigger security definer no corre en algun flujo)
-create policy if not exists profiles_insert_self on public.profiles
+drop policy if exists profiles_insert_self on public.profiles;
+create policy profiles_insert_self on public.profiles
   for insert with check (id = auth.uid());
