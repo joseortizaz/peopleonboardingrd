@@ -82,6 +82,15 @@ export default async function OnboardingPage({
             Crear
           </button>
         </form>
+
+        <p className="border-t border-gray-100 pt-4 text-center text-xs text-gray-500">
+          ¿Tu empresa ya usa este sistema? Pídele a Recursos Humanos que
+          registre tu correo como empleado y luego{" "}
+          <a href="/app" className="font-medium text-gray-700 hover:underline">
+            reintenta aquí
+          </a>
+          .
+        </p>
       </div>
     </div>
   );

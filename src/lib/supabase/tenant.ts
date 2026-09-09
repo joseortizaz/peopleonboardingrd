@@ -31,21 +31,9 @@ export function isManagerRole(role: MemberRole | null) {
   return role === "super_admin" || role === "account_admin" || role === "hr_manager";
 }
 
-/**
- * Devuelve el primer tenant accesible para el usuario autenticado
- * (gracias a la policy RLS "tenants_select" solo vienen los que puede ver)
- * junto con su rol en ese tenant. null si el usuario aun no pertenece a
- * ninguna cuenta/tenant.
- */
-export async function getCurrentTenant(): Promise<CurrentTenant | null> {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) return null;
-
+async function fetchFirstTenant(
+  supabase: Awaited<ReturnType<typeof createClient>>
+) {
   const { data: tenant, error } = await supabase
     .from("tenants")
     .select("id, name, slug, account_id")
@@ -56,6 +44,40 @@ export async function getCurrentTenant(): Promise<CurrentTenant | null> {
   if (error) {
     console.error("getCurrentTenant error:", error.message);
     return null;
+  }
+
+  return tenant;
+}
+
+/**
+ * Devuelve el primer tenant accesible para el usuario autenticado
+ * (gracias a la policy RLS "tenants_select" solo vienen los que puede ver)
+ * junto con su rol en ese tenant. null si el usuario aun no pertenece a
+ * ninguna cuenta/tenant.
+ *
+ * Si no se encuentra ningun tenant, intenta un auto-vinculo retroactivo
+ * (por si RR.HH. registro el correo de este usuario como empleado
+ * *despues* de que la cuenta ya existiera — el trigger de signup solo
+ * vincula en el momento del registro, no despues) antes de rendirse.
+ */
+export async function getCurrentTenant(): Promise<CurrentTenant | null> {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return null;
+
+  let tenant = await fetchFirstTenant(supabase);
+
+  if (!tenant) {
+    const { error: linkError } = await supabase.rpc("link_my_employee_record");
+    if (linkError) {
+      console.error("link_my_employee_record error:", linkError.message);
+    } else {
+      tenant = await fetchFirstTenant(supabase);
+    }
   }
 
   if (!tenant) return null;
