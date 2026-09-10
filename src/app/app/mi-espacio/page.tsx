@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentTenant } from "@/lib/supabase/tenant";
 import { toggleOnboardingTask } from "../incorporacion/actions";
 import DownloadDocumentButton from "../documentos/DownloadDocumentButton";
+import { signDocument } from "../documentos/actions";
 import {
   clockInAction,
   clockOutAction,
@@ -110,9 +111,9 @@ const trainingStatusClass: Record<string, string> = {
 export default async function MiEspacioPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; message?: string }>;
 }) {
-  const { error } = await searchParams;
+  const { error, message } = await searchParams;
   const tenant = await getCurrentTenant();
   if (!tenant) redirect("/app/onboarding");
   if (tenant.myRole === "client") redirect("/app/portal-cliente");
@@ -183,7 +184,9 @@ export default async function MiEspacioPage({
       .maybeSingle(),
     supabase
       .from("employee_documents")
-      .select("id, doc_type, file_name, expires_at")
+      .select(
+        "id, doc_type, file_name, expires_at, requires_signature, signed_at"
+      )
       .eq("employee_id", employee.id)
       .order("created_at", { ascending: false }),
     supabase
@@ -251,6 +254,12 @@ export default async function MiEspacioPage({
       {error && (
         <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
+        </div>
+      )}
+
+      {message && (
+        <div className="mt-4 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          {message}
         </div>
       )}
 
@@ -597,7 +606,20 @@ export default async function MiEspacioPage({
 
       <div className="mt-6 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         <div className="border-b border-gray-100 px-6 py-4">
-          <h2 className="text-sm font-medium text-gray-700">Mis documentos</h2>
+          <h2 className="flex items-center gap-2 text-sm font-medium text-gray-700">
+            Mis documentos
+            {(myDocuments ?? []).filter((d) => d.requires_signature && !d.signed_at)
+              .length > 0 && (
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                {
+                  (myDocuments ?? []).filter(
+                    (d) => d.requires_signature && !d.signed_at
+                  ).length
+                }{" "}
+                por firmar
+              </span>
+            )}
+          </h2>
         </div>
         <div className="divide-y divide-gray-100">
           {(myDocuments ?? []).length === 0 && (
@@ -607,31 +629,82 @@ export default async function MiEspacioPage({
           )}
           {(myDocuments ?? []).map((d) => {
             const badge = expirationBadge(d.expires_at);
+            const pendingSignature = d.requires_signature && !d.signed_at;
+            const sign = signDocument.bind(null, d.id);
             return (
-              <div
-                key={d.id}
-                className="flex items-center justify-between px-6 py-4"
-              >
-                <div>
-                  <p className="text-sm font-medium text-gray-900">
-                    {d.doc_type}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    {d.file_name}
-                    {d.expires_at && (
-                      <>
-                        {" · "}
+              <div key={d.id} className="px-6 py-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">
+                      {d.doc_type}
+                      {d.requires_signature && (
                         <span
-                          className={`rounded-full px-2 py-0.5 text-xs font-medium ${badge?.className}`}
+                          className={
+                            "ml-2 rounded-full px-2 py-0.5 text-xs font-medium " +
+                            (d.signed_at
+                              ? "bg-emerald-100 text-emerald-700"
+                              : "bg-amber-100 text-amber-700")
+                          }
                         >
-                          {badge?.label}
-                        </span>{" "}
-                        {dateFmt(d.expires_at)}
-                      </>
-                    )}
-                  </p>
+                          {d.signed_at ? "Firmado" : "Pendiente de firma"}
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {d.file_name}
+                      {d.expires_at && (
+                        <>
+                          {" · "}
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-xs font-medium ${badge?.className}`}
+                          >
+                            {badge?.label}
+                          </span>{" "}
+                          {dateFmt(d.expires_at)}
+                        </>
+                      )}
+                    </p>
+                  </div>
+                  <DownloadDocumentButton documentId={d.id} />
                 </div>
-                <DownloadDocumentButton documentId={d.id} />
+                {pendingSignature && (
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-xs font-medium text-gray-700 hover:underline">
+                      Firmar documento
+                    </summary>
+                    <form
+                      action={sign}
+                      className="mt-2 max-w-md rounded-md border border-gray-200 bg-gray-50 p-3"
+                    >
+                      <p className="text-xs text-gray-600">
+                        Declaro que he leído y acepto el contenido de este
+                        documento (&quot;{d.file_name}&quot;), y que el
+                        nombre completo que escriba a continuación
+                        constituye mi firma electrónica, conforme a la Ley
+                        126-02 sobre Comercio Electrónico, Documentos y
+                        Firmas Digitales de la República Dominicana. Esta
+                        es una firma electrónica simple, no una firma
+                        digital certificada por un proveedor externo.
+                      </p>
+                      <label className="mt-2 block text-xs text-gray-500">
+                        Nombre completo (tu firma)
+                      </label>
+                      <input
+                        name="full_name"
+                        type="text"
+                        required
+                        placeholder={employee.full_name}
+                        className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                      />
+                      <button
+                        type="submit"
+                        className="mt-2 rounded-md bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-800"
+                      >
+                        Firmar
+                      </button>
+                    </form>
+                  </details>
+                )}
               </div>
             );
           })}

@@ -24,6 +24,13 @@ export default async function AppHomePage() {
     .not("expires_at", "is", null)
     .lte("expires_at", in30Days.toISOString().slice(0, 10));
 
+  const { count: pendingSignatureDocs } = await supabase
+    .from("employee_documents")
+    .select("id", { count: "exact", head: true })
+    .eq("tenant_id", tenant.id)
+    .eq("requires_signature", true)
+    .is("signed_at", null);
+
   const { count: activeSurveys } = await supabase
     .from("climate_surveys")
     .select("id", { count: "exact", head: true })
@@ -136,9 +143,15 @@ export default async function AppHomePage() {
                 {expiringDocs} por vencer
               </span>
             )}
+            {!!pendingSignatureDocs && pendingSignatureDocs > 0 && (
+              <span className="rounded-full bg-gray-900 px-2 py-0.5 text-xs font-medium text-white">
+                {pendingSignatureDocs} por firmar
+              </span>
+            )}
           </h2>
           <p className="mt-1 text-sm text-gray-500">
-            Expediente digital por empleado, con alerta de documentos por vencer.
+            Expediente digital por empleado, con alerta de vencimiento y
+            firma electrónica de documentos.
           </p>
         </Link>
 
