@@ -29,7 +29,7 @@ export default async function NominaPeriodoPage({
 
   const { data: period } = await supabase
     .from("payroll_periods")
-    .select("id, period_type, start_date, end_date, pay_date, status")
+    .select("id, period_type, start_date, end_date, pay_date, status, fiscal_year")
     .eq("id", id)
     .eq("tenant_id", tenant.id)
     .maybeSingle();
@@ -74,6 +74,12 @@ export default async function NominaPeriodoPage({
           <p className="mt-1 text-sm text-gray-500">
             {dateFmt(period.start_date)} – {dateFmt(period.end_date)} · Fecha de pago:{" "}
             {dateFmt(period.pay_date)}
+          </p>
+          <p className="mt-1 text-xs text-gray-400">
+            Calculado con las reglas del año fiscal {period.fiscal_year} —{" "}
+            <Link href="/app/nomina/reglas-fiscales" className="underline">
+              ver detalle
+            </Link>
           </p>
         </div>
         <div className="flex items-center gap-2">

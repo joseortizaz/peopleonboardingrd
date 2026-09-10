@@ -26,7 +26,7 @@ export default async function NominaPage({
   const [{ data: periods }, { count: employeesWithSalary }] = await Promise.all([
     supabase
       .from("payroll_periods")
-      .select("id, period_type, start_date, end_date, pay_date, status, created_at")
+      .select("id, period_type, start_date, end_date, pay_date, status, fiscal_year, created_at")
       .eq("tenant_id", tenant.id)
       .order("start_date", { ascending: false }),
     supabase
@@ -58,13 +58,23 @@ export default async function NominaPage({
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-10">
-      <h1 className="text-xl font-semibold text-gray-900">
-        Nómina — {tenant.name}
-      </h1>
-      <p className="mt-1 text-sm text-gray-500">
-        Cálculo de referencia de nómina dominicana (SFS, AFP, SRL, INFOTEP e
-        ISR) para los empleados activos con salario mensual registrado.
-      </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-xl font-semibold text-gray-900">
+            Nómina — {tenant.name}
+          </h1>
+          <p className="mt-1 text-sm text-gray-500">
+            Cálculo de referencia de nómina dominicana (SFS, AFP, SRL, INFOTEP
+            e ISR) para los empleados activos con salario mensual registrado.
+          </p>
+        </div>
+        <Link
+          href="/app/nomina/reglas-fiscales"
+          className="whitespace-nowrap text-sm text-gray-500 hover:underline"
+        >
+          Reglas fiscales
+        </Link>
+      </div>
 
       {error && (
         <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -149,7 +159,8 @@ export default async function NominaPage({
                   {dateFmt(p.start_date)} – {dateFmt(p.end_date)}
                 </p>
                 <p className="text-xs text-gray-500">
-                  Pago: {dateFmt(p.pay_date)} · {totals.count} empleado(s)
+                  Pago: {dateFmt(p.pay_date)} · {totals.count} empleado(s) ·
+                  Año fiscal {p.fiscal_year}
                 </p>
               </div>
               <div className="text-right">
