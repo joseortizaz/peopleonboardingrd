@@ -93,6 +93,12 @@ export default async function AppLayout({
                   Beneficios
                 </Link>
                 <Link
+                  href="/app/capacitacion"
+                  className="text-sm text-gray-600 hover:text-gray-900"
+                >
+                  Capacitación
+                </Link>
+                <Link
                   href="/app/comunicacion"
                   className="text-sm text-gray-600 hover:text-gray-900"
                 >

@@ -180,6 +180,16 @@ export default async function AppHomePage() {
         </Link>
 
         <Link
+          href="/app/capacitacion"
+          className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:border-gray-300"
+        >
+          <h2 className="font-medium text-gray-900">Capacitación</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            Catálogo de cursos, inscripciones y horas INFOTEP acumuladas.
+          </p>
+        </Link>
+
+        <Link
           href="/app/comunicacion"
           className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:border-gray-300"
         >

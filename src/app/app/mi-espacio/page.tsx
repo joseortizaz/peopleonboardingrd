@@ -10,6 +10,8 @@ import {
   requestLeaveAction,
   cancelLeaveRequestAction,
 } from "../asistencia/actions";
+import { updateEnrollmentStatus } from "../capacitacion/actions";
+import EnrollmentStatusSelect from "../capacitacion/EnrollmentStatusSelect";
 
 function expirationBadge(expiresAt: string | null) {
   if (!expiresAt) return null;
@@ -93,6 +95,18 @@ const currency = new Intl.NumberFormat("es-DO", {
   currency: "DOP",
 });
 
+const trainingStatusLabel: Record<string, string> = {
+  pendiente: "Pendiente",
+  en_progreso: "En progreso",
+  completada: "Completada",
+};
+
+const trainingStatusClass: Record<string, string> = {
+  pendiente: "bg-gray-100 text-gray-600",
+  en_progreso: "bg-gray-900 text-white",
+  completada: "bg-emerald-100 text-emerald-800",
+};
+
 export default async function MiEspacioPage({
   searchParams,
 }: {
@@ -152,6 +166,7 @@ export default async function MiEspacioPage({
     { data: vacationBalanceRows },
     { data: myLeaveRequests },
     { data: myBenefits },
+    { data: myEnrollments },
   ] = await Promise.all([
     supabase
       .from("evaluations")
@@ -191,6 +206,13 @@ export default async function MiEspacioPage({
       .eq("employee_id", employee.id)
       .or(`end_date.is.null,end_date.gte.${today}`)
       .order("start_date", { ascending: false }),
+    supabase
+      .from("training_enrollments")
+      .select(
+        "id, due_date, status, completed_at, training_courses(name, category, duration_hours)"
+      )
+      .eq("employee_id", employee.id)
+      .order("created_at", { ascending: false }),
   ]);
 
   const myBenefitIds = (myBenefits ?? []).map((b) => b.id);
@@ -430,6 +452,58 @@ export default async function MiEspacioPage({
                       .join(", ")}
                   </p>
                 )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="mt-6 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div className="border-b border-gray-100 px-6 py-4">
+          <h2 className="text-sm font-medium text-gray-700">Mis cursos</h2>
+        </div>
+        <div className="divide-y divide-gray-100">
+          {(myEnrollments ?? []).length === 0 && (
+            <p className="px-6 py-6 text-center text-sm text-gray-500">
+              No tienes cursos asignados.
+            </p>
+          )}
+          {(myEnrollments ?? []).map((en) => {
+            const course = en.training_courses as unknown as {
+              name: string;
+              category: string | null;
+              duration_hours: number;
+            } | null;
+            const updateStatus = updateEnrollmentStatus.bind(null, en.id, "/app/mi-espacio");
+            return (
+              <div key={en.id} className="flex items-center justify-between gap-3 px-6 py-4 text-sm">
+                <div>
+                  <p className="font-medium text-gray-900">
+                    {course?.name ?? "—"}
+                    {course?.category && (
+                      <span className="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+                        {course.category}
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {course?.duration_hours} hora(s)
+                    {en.due_date ? ` · Vence ${dateFmt(en.due_date)}` : ""}
+                    {en.completed_at
+                      ? ` · Certificado: completado el ${new Date(en.completed_at).toLocaleDateString("es-DO")}`
+                      : ""}
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <span
+                    className={`rounded-full px-3 py-1 text-xs font-medium ${
+                      trainingStatusClass[en.status] ?? "bg-gray-100 text-gray-600"
+                    }`}
+                  >
+                    {trainingStatusLabel[en.status] ?? en.status}
+                  </span>
+                  <EnrollmentStatusSelect action={updateStatus} defaultValue={en.status} />
+                </div>
               </div>
             );
           })}
