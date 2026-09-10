@@ -32,30 +32,49 @@ export default async function AnalyticsPage() {
   if (!isManagerRole(tenant.myRole)) redirect("/app/mi-espacio");
 
   const supabase = await createClient();
-
-  const [{ data: employees }, { data: offboarding }, { data: periods }, { data: entries }] =
-    await Promise.all([
-      supabase
-        .from("employees")
-        .select("hire_date, status")
-        .eq("tenant_id", tenant.id)
-        .not("hire_date", "is", null),
-      supabase
-        .from("offboarding_processes")
-        .select("last_working_day")
-        .eq("tenant_id", tenant.id),
-      supabase
-        .from("payroll_periods")
-        .select("id, period_type, start_date, pay_date, status")
-        .eq("tenant_id", tenant.id)
-        .order("start_date", { ascending: true }),
-      supabase
-        .from("payroll_entries")
-        .select("period_id, gross_salary, sfs_employer, afp_employer, srl_employer, infotep_employer, net_pay")
-        .eq("tenant_id", tenant.id),
-    ]);
-
   const monthKeys = last12MonthKeys();
+  const rangeStart = `${monthKeys[0]}-01`;
+
+  const [
+    { data: employees },
+    { data: offboarding },
+    { data: periods },
+    { data: entries },
+    { data: leaveRequests },
+    { data: lateEntries },
+  ] = await Promise.all([
+    supabase
+      .from("employees")
+      .select("id, full_name, hire_date, status")
+      .eq("tenant_id", tenant.id)
+      .not("hire_date", "is", null),
+    supabase
+      .from("offboarding_processes")
+      .select("last_working_day")
+      .eq("tenant_id", tenant.id),
+    supabase
+      .from("payroll_periods")
+      .select("id, period_type, start_date, pay_date, status")
+      .eq("tenant_id", tenant.id)
+      .order("start_date", { ascending: true }),
+    supabase
+      .from("payroll_entries")
+      .select("period_id, gross_salary, sfs_employer, afp_employer, srl_employer, infotep_employer, net_pay")
+      .eq("tenant_id", tenant.id),
+    supabase
+      .from("leave_requests")
+      .select("employee_id, type, start_date, days_requested")
+      .eq("tenant_id", tenant.id)
+      .eq("status", "aprobada")
+      .gte("start_date", rangeStart),
+    supabase
+      .from("time_clock_entries")
+      .select("employee_id, clock_in")
+      .eq("tenant_id", tenant.id)
+      .eq("is_late", true)
+      .gte("clock_in", rangeStart),
+  ]);
+
   const hires: Record<string, number> = Object.fromEntries(monthKeys.map((k) => [k, 0]));
   const exits: Record<string, number> = Object.fromEntries(monthKeys.map((k) => [k, 0]));
 
@@ -92,15 +111,69 @@ export default async function AnalyticsPage() {
 
   const maxTotalCost = Math.max(1, ...periodTotals.map((p) => p.totalCost));
 
+  // ---------- Ausentismo ----------
+  const leaveDaysByMonth: Record<string, { vacaciones: number; permiso: number }> =
+    Object.fromEntries(monthKeys.map((k) => [k, { vacaciones: 0, permiso: 0 }]));
+
+  (leaveRequests ?? []).forEach((lr) => {
+    const key = lr.start_date.slice(0, 7);
+    if (key in leaveDaysByMonth) {
+      const bucket = leaveDaysByMonth[key];
+      if (lr.type === "vacaciones") bucket.vacaciones += Number(lr.days_requested);
+      else bucket.permiso += Number(lr.days_requested);
+    }
+  });
+
+  const maxLeaveDaysMonth = Math.max(
+    1,
+    ...monthKeys.map((k) => leaveDaysByMonth[k].vacaciones + leaveDaysByMonth[k].permiso)
+  );
+
+  const totalLeaveDays12m = (leaveRequests ?? []).reduce(
+    (s, lr) => s + Number(lr.days_requested),
+    0
+  );
+  const totalLateEntries12m = (lateEntries ?? []).length;
+
+  const employeeNameById = new Map((employees ?? []).map((e) => [e.id, e.full_name]));
+
+  const leaveDaysByEmployee = new Map<string, number>();
+  (leaveRequests ?? []).forEach((lr) => {
+    leaveDaysByEmployee.set(
+      lr.employee_id,
+      (leaveDaysByEmployee.get(lr.employee_id) ?? 0) + Number(lr.days_requested)
+    );
+  });
+
+  const lateCountByEmployee = new Map<string, number>();
+  (lateEntries ?? []).forEach((e) => {
+    lateCountByEmployee.set(e.employee_id, (lateCountByEmployee.get(e.employee_id) ?? 0) + 1);
+  });
+
+  const employeesWithAbsenteeism = new Set([
+    ...leaveDaysByEmployee.keys(),
+    ...lateCountByEmployee.keys(),
+  ]);
+
+  const absenteeismByEmployee = Array.from(employeesWithAbsenteeism)
+    .map((id) => ({
+      id,
+      name: employeeNameById.get(id) ?? "Empleado eliminado",
+      leaveDays: leaveDaysByEmployee.get(id) ?? 0,
+      lateCount: lateCountByEmployee.get(id) ?? 0,
+    }))
+    .sort((a, b) => b.leaveDays + b.lateCount - (a.leaveDays + a.lateCount))
+    .slice(0, 10);
+
   return (
     <div className="mx-auto max-w-3xl px-6 py-10">
       <h1 className="text-xl font-semibold text-gray-900">
         People analytics — {tenant.name}
       </h1>
       <p className="mt-1 text-sm text-gray-500">
-        Rotación de personal y costo de nómina, calculados a partir de los
-        datos ya registrados en Empleados, Bajas y Nómina. El ausentismo
-        queda pendiente hasta construir el módulo de asistencia y tiempo.
+        Rotación de personal, costo de nómina y ausentismo, calculados a
+        partir de los datos ya registrados en Empleados, Bajas, Nómina y
+        Asistencia.
       </p>
 
       <div className="mt-6 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
@@ -185,6 +258,94 @@ export default async function AnalyticsPage() {
                 <span className="h-2 w-2 rounded-full bg-amber-400" /> Aportes patronales
               </span>
             </div>
+          </div>
+        )}
+      </div>
+
+      <div className="mt-6 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+        <h2 className="text-sm font-medium text-gray-700">
+          Ausentismo (últimos 12 meses)
+        </h2>
+        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-2">
+          <div className="rounded-lg bg-gray-50 p-3">
+            <p className="text-xs text-gray-500">Días de vacaciones/permisos aprobados</p>
+            <p className="mt-1 text-lg font-semibold text-gray-900">
+              {totalLeaveDays12m.toLocaleString("es-DO")}
+            </p>
+          </div>
+          <div className="rounded-lg bg-gray-50 p-3">
+            <p className="text-xs text-gray-500">Marcajes con tardanza</p>
+            <p className="mt-1 text-lg font-semibold text-gray-900">
+              {totalLateEntries12m.toLocaleString("es-DO")}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-5 flex items-end gap-1.5" style={{ height: 140 }}>
+          {monthKeys.map((k) => {
+            const bucket = leaveDaysByMonth[k];
+            return (
+              <div key={k} className="flex flex-1 flex-col items-center gap-1">
+                <div className="flex h-24 w-full items-end justify-center">
+                  <div
+                    className="flex w-3.5 flex-col-reverse overflow-hidden rounded-t"
+                    style={{
+                      height: `${((bucket.vacaciones + bucket.permiso) / maxLeaveDaysMonth) * 100}%`,
+                    }}
+                    title={`${bucket.vacaciones} día(s) de vacaciones, ${bucket.permiso} día(s) de permiso`}
+                  >
+                    <div
+                      className="w-full bg-sky-400"
+                      style={{
+                        height:
+                          bucket.vacaciones + bucket.permiso > 0
+                            ? `${(bucket.vacaciones / (bucket.vacaciones + bucket.permiso)) * 100}%`
+                            : "0%",
+                      }}
+                    />
+                    <div
+                      className="w-full bg-violet-400"
+                      style={{
+                        height:
+                          bucket.vacaciones + bucket.permiso > 0
+                            ? `${(bucket.permiso / (bucket.vacaciones + bucket.permiso)) * 100}%`
+                            : "0%",
+                      }}
+                    />
+                  </div>
+                </div>
+                <span className="text-[10px] text-gray-400">{monthLabel(k)}</span>
+              </div>
+            );
+          })}
+        </div>
+        <div className="mt-3 flex items-center gap-4 text-xs text-gray-500">
+          <span className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-sky-400" /> Días de vacaciones
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-violet-400" /> Días de permiso
+          </span>
+        </div>
+
+        <h3 className="mt-6 text-xs font-medium uppercase tracking-wide text-gray-500">
+          Empleados con más ausentismo
+        </h3>
+        {absenteeismByEmployee.length === 0 ? (
+          <p className="mt-2 text-sm text-gray-500">
+            Aún no hay vacaciones/permisos aprobados ni tardanzas registradas
+            en los últimos 12 meses.
+          </p>
+        ) : (
+          <div className="mt-3 divide-y divide-gray-100">
+            {absenteeismByEmployee.map((row) => (
+              <div key={row.id} className="flex items-center justify-between py-2 text-sm">
+                <span className="text-gray-900">{row.name}</span>
+                <span className="text-xs text-gray-500">
+                  {row.leaveDays} día(s) de ausencia · {row.lateCount} tardanza(s)
+                </span>
+              </div>
+            ))}
           </div>
         )}
       </div>
