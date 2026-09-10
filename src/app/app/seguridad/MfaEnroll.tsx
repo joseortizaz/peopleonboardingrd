@@ -36,11 +36,15 @@ export function MfaEnroll() {
       <p className="text-sm text-gray-600">
         Escanea este código QR con tu app de autenticación:
       </p>
-      <div
-        className="mt-3 w-fit rounded-md border border-gray-200 p-2"
-        // El SVG proviene directamente de la respuesta de Supabase Auth
-        // (auth.mfa.enroll), no de contenido escrito por el usuario.
-        dangerouslySetInnerHTML={{ __html: enrollState.qrCode }}
+      {/* enrollState.qrCode ya es una data URI completa
+          ("data:image/svg+xml;utf-8,<svg>...") devuelta por
+          auth.mfa.enroll(), no un fragmento de SVG suelto. */}
+      <img
+        src={enrollState.qrCode}
+        alt="Código QR para activar la verificación en dos pasos"
+        width={200}
+        height={200}
+        className="mt-3 rounded-md border border-gray-200 p-2"
       />
       <p className="mt-3 text-xs text-gray-500">
         ¿No puedes escanear el código? Ingresa esta clave manualmente:{" "}
