@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentTenant, isManagerRole } from "@/lib/supabase/tenant";
 import { adjustPayrollEntry, closePayrollPeriod, deletePayrollPeriod } from "../actions";
 import ExportCsvButton from "../ExportCsvButton";
+import ExportBankCsvButton from "../ExportBankCsvButton";
 
 const currency = new Intl.NumberFormat("es-DO", {
   style: "currency",
@@ -39,7 +40,7 @@ export default async function NominaPeriodoPage({
   const { data: entries } = await supabase
     .from("payroll_entries")
     .select(
-      "id, gross_salary, sfs_employee, sfs_employer, afp_employee, afp_employer, srl_employer, infotep_employer, isr_withholding, other_bonuses, other_deductions, net_pay, employees(full_name)"
+      "id, gross_salary, sfs_employee, sfs_employer, afp_employee, afp_employer, srl_employer, infotep_employer, isr_withholding, other_bonuses, other_deductions, net_pay, employees(full_name, national_id, bank_name, bank_account_type, bank_account_number)"
     )
     .eq("period_id", id)
     .order("created_at", { ascending: true });
@@ -59,6 +60,23 @@ export default async function NominaPeriodoPage({
     },
     { gross: 0, employerCost: 0, isr: 0, net: 0 }
   );
+
+  const employeesMissingBankInfo = (entries ?? [])
+    .map((e) => {
+      const employee = e.employees as unknown as {
+        full_name: string;
+        national_id: string | null;
+        bank_name: string | null;
+        bank_account_type: string | null;
+        bank_account_number: string | null;
+      } | null;
+      return employee;
+    })
+    .filter(
+      (employee): employee is NonNullable<typeof employee> =>
+        !!employee &&
+        (!employee.national_id || !employee.bank_name || !employee.bank_account_type || !employee.bank_account_number)
+    );
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
@@ -95,8 +113,31 @@ export default async function NominaPeriodoPage({
             periodId={period.id}
             fileName={`nomina-${period.start_date}-${period.end_date}.csv`}
           />
+          <ExportBankCsvButton
+            periodId={period.id}
+            fileName={`export-bancario-${period.start_date}-${period.end_date}.csv`}
+          />
         </div>
       </div>
+
+      <p className="mt-2 text-xs text-gray-400">
+        El export bancario es un CSV de referencia (cédula/RNC, nombre, banco,
+        tipo de cuenta, número de cuenta y monto) — ajusta el orden de las
+        columnas a la plantilla exacta que pida el portal de tu banco antes de
+        subirlo.
+      </p>
+
+      {employeesMissingBankInfo.length > 0 && (
+        <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          {employeesMissingBankInfo.length} empleado(s) sin datos bancarios
+          completos quedarán fuera del export bancario:{" "}
+          {employeesMissingBankInfo.map((e) => e.full_name).join(", ")}. Complétalos en{" "}
+          <Link href="/app/empleados" className="underline">
+            Empleados
+          </Link>
+          .
+        </div>
+      )}
 
       {error && (
         <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">

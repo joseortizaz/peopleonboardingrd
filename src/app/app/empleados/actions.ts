@@ -65,3 +65,23 @@ export async function updateEmployeeSalary(employeeId: string, formData: FormDat
 
   revalidatePath("/app/empleados");
 }
+
+export async function updateEmployeeBankInfo(employeeId: string, formData: FormData) {
+  const supabase = await createClient();
+
+  const national_id = (formData.get("national_id") as string)?.trim() || null;
+  const bank_name = (formData.get("bank_name") as string)?.trim() || null;
+  const bank_account_type = (formData.get("bank_account_type") as string) || null;
+  const bank_account_number = (formData.get("bank_account_number") as string)?.trim() || null;
+
+  const { error } = await supabase
+    .from("employees")
+    .update({ national_id, bank_name, bank_account_type, bank_account_number })
+    .eq("id", employeeId);
+
+  if (error) {
+    console.error("updateEmployeeBankInfo error:", error.message);
+  }
+
+  revalidatePath("/app/empleados");
+}

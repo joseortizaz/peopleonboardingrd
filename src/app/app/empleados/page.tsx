@@ -1,7 +1,8 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentTenant, isManagerRole } from "@/lib/supabase/tenant";
-import { createEmployee, deleteEmployee, updateEmployeeSalary } from "./actions";
+import { createEmployee, deleteEmployee, updateEmployeeSalary, updateEmployeeBankInfo } from "./actions";
 
 const statusLabel: Record<string, string> = {
   active: "Activo",
@@ -24,7 +25,9 @@ export default async function EmpleadosPage() {
   const [{ data: employees }, { data: departments }] = await Promise.all([
     supabase
       .from("employees")
-      .select("id, full_name, position, hire_date, status, department_id, email, monthly_salary")
+      .select(
+        "id, full_name, position, hire_date, status, department_id, email, monthly_salary, national_id, bank_name, bank_account_type, bank_account_number"
+      )
       .eq("tenant_id", tenant.id)
       .order("created_at", { ascending: false }),
     supabase
@@ -44,6 +47,12 @@ export default async function EmpleadosPage() {
       </h1>
       <p className="mt-1 text-sm text-gray-500">
         Registro base de colaboradores, para asignarlos a departamentos y evaluarlos.
+        Completa los datos bancarios de cada empleado (desplegable "Datos
+        bancarios" junto al salario) para poder incluirlo en el{" "}
+        <Link href="/app/nomina" className="underline">
+          export bancario de nómina
+        </Link>
+        .
       </p>
 
       <div className="mt-6 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
@@ -133,8 +142,11 @@ export default async function EmpleadosPage() {
             {(employees ?? []).map((e) => {
               const remove = deleteEmployee.bind(null, e.id);
               const updateSalary = updateEmployeeSalary.bind(null, e.id);
+              const updateBankInfo = updateEmployeeBankInfo.bind(null, e.id);
+              const hasBankInfo =
+                !!e.national_id && !!e.bank_name && !!e.bank_account_type && !!e.bank_account_number;
               return (
-                <tr key={e.id}>
+                <tr key={e.id} className="align-top">
                   <td className="px-4 py-2 text-gray-900">{e.full_name}</td>
                   <td className="px-4 py-2 text-gray-600">{e.email ?? "—"}</td>
                   <td className="px-4 py-2 text-gray-600">
@@ -164,6 +176,52 @@ export default async function EmpleadosPage() {
                         {currency.format(Number(e.monthly_salary))}
                       </p>
                     )}
+                    <details className="mt-2">
+                      <summary className="cursor-pointer text-xs text-gray-500 hover:text-gray-900 hover:underline">
+                        {hasBankInfo ? "Datos bancarios ✓" : "Datos bancarios (faltan)"}
+                      </summary>
+                      <form
+                        action={updateBankInfo}
+                        className="mt-2 flex flex-col gap-1.5 rounded-md border border-gray-200 bg-gray-50 p-2"
+                      >
+                        <input
+                          name="national_id"
+                          type="text"
+                          placeholder="Cédula/RNC"
+                          defaultValue={e.national_id ?? ""}
+                          className="rounded-md border border-gray-300 px-2 py-1 text-xs"
+                        />
+                        <input
+                          name="bank_name"
+                          type="text"
+                          placeholder="Banco"
+                          defaultValue={e.bank_name ?? ""}
+                          className="rounded-md border border-gray-300 px-2 py-1 text-xs"
+                        />
+                        <select
+                          name="bank_account_type"
+                          defaultValue={e.bank_account_type ?? ""}
+                          className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs"
+                        >
+                          <option value="">Tipo de cuenta</option>
+                          <option value="ahorro">Ahorro</option>
+                          <option value="corriente">Corriente</option>
+                        </select>
+                        <input
+                          name="bank_account_number"
+                          type="text"
+                          placeholder="Número de cuenta"
+                          defaultValue={e.bank_account_number ?? ""}
+                          className="rounded-md border border-gray-300 px-2 py-1 text-xs"
+                        />
+                        <button
+                          type="submit"
+                          className="self-start text-xs text-gray-500 hover:text-gray-900 hover:underline"
+                        >
+                          Guardar
+                        </button>
+                      </form>
+                    </details>
                   </td>
                   <td className="px-4 py-2 text-gray-600">
                     {statusLabel[e.status] ?? e.status}
