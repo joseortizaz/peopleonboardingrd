@@ -155,6 +155,12 @@ export default async function AppLayout({
                 Mi espacio
               </Link>
             )}
+            <Link
+              href="/app/seguridad"
+              className="text-sm text-gray-600 hover:text-gray-900"
+            >
+              Seguridad
+            </Link>
           </nav>
           <div className="flex items-center gap-3">
             <span className="text-sm text-gray-500">{user?.email}</span>
