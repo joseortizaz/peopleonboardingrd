@@ -40,7 +40,7 @@ export default async function NominaPeriodoPage({
   const { data: entries } = await supabase
     .from("payroll_entries")
     .select(
-      "id, gross_salary, sfs_employee, sfs_employer, afp_employee, afp_employer, srl_employer, infotep_employer, isr_withholding, other_bonuses, other_deductions, net_pay, employees(full_name, national_id, bank_name, bank_account_type, bank_account_number)"
+      "id, gross_salary, sfs_employee, sfs_employer, afp_employee, afp_employer, srl_employer, infotep_employer, isr_withholding, benefits_deduction, other_bonuses, other_deductions, net_pay, employees(full_name, national_id, bank_name, bank_account_type, bank_account_number)"
     )
     .eq("period_id", id)
     .order("created_at", { ascending: true });
@@ -55,10 +55,11 @@ export default async function NominaPeriodoPage({
       acc.employerCost +=
         Number(e.sfs_employer) + Number(e.afp_employer) + Number(e.srl_employer) + Number(e.infotep_employer);
       acc.isr += Number(e.isr_withholding);
+      acc.benefitsDeduction += Number(e.benefits_deduction);
       acc.net += Number(e.net_pay);
       return acc;
     },
-    { gross: 0, employerCost: 0, isr: 0, net: 0 }
+    { gross: 0, employerCost: 0, isr: 0, benefitsDeduction: 0, net: 0 }
   );
 
   const employeesMissingBankInfo = (entries ?? [])
@@ -145,7 +146,7 @@ export default async function NominaPeriodoPage({
         </div>
       )}
 
-      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
         <div className="rounded-xl border border-gray-200 bg-white p-4">
           <p className="text-xs text-gray-500">Bruto total</p>
           <p className="mt-1 text-sm font-medium text-gray-900">{currency.format(totals.gross)}</p>
@@ -159,10 +160,25 @@ export default async function NominaPeriodoPage({
           <p className="mt-1 text-sm font-medium text-gray-900">{currency.format(totals.isr)}</p>
         </div>
         <div className="rounded-xl border border-gray-200 bg-white p-4">
+          <p className="text-xs text-gray-500">Deducción beneficios</p>
+          <p className="mt-1 text-sm font-medium text-gray-900">{currency.format(totals.benefitsDeduction)}</p>
+        </div>
+        <div className="rounded-xl border border-gray-200 bg-white p-4">
           <p className="text-xs text-gray-500">Neto a pagar</p>
           <p className="mt-1 text-sm font-medium text-gray-900">{currency.format(totals.net)}</p>
         </div>
       </div>
+
+      <p className="mt-2 text-xs text-gray-400">
+        La columna &quot;Beneficios&quot; es el aporte del empleado (no el de la
+        empresa) a sus beneficios activos durante este periodo — ver{" "}
+        <Link href="/app/beneficios" className="underline">
+          Beneficios
+        </Link>{" "}
+        — y ya está descontada del neto. Se calculó automáticamente al generar
+        el periodo; para que cambie en un periodo abierto, ajusta el
+        beneficio del empleado y vuelve a generar el periodo.
+      </p>
 
       <div className="mt-6 overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
         <table className="w-full min-w-[900px] text-sm">
@@ -173,6 +189,7 @@ export default async function NominaPeriodoPage({
               <th className="px-3 py-2 text-right">SFS (empl.)</th>
               <th className="px-3 py-2 text-right">AFP (empl.)</th>
               <th className="px-3 py-2 text-right">ISR</th>
+              <th className="px-3 py-2 text-right">Beneficios</th>
               <th className="px-3 py-2 text-right">Bono</th>
               <th className="px-3 py-2 text-right">Deducción</th>
               <th className="px-3 py-2 text-right">Neto</th>
@@ -182,7 +199,7 @@ export default async function NominaPeriodoPage({
           <tbody className="divide-y divide-gray-100">
             {(entries ?? []).length === 0 && (
               <tr>
-                <td colSpan={9} className="px-3 py-6 text-center text-gray-500">
+                <td colSpan={10} className="px-3 py-6 text-center text-gray-500">
                   Sin entradas — ningún empleado activo tenía salario mensual
                   registrado al generar este periodo.
                 </td>
@@ -206,6 +223,9 @@ export default async function NominaPeriodoPage({
                   </td>
                   <td className="px-3 py-2 text-right text-gray-600">
                     {currency.format(Number(e.isr_withholding))}
+                  </td>
+                  <td className="px-3 py-2 text-right text-gray-600">
+                    {currency.format(Number(e.benefits_deduction))}
                   </td>
                   {isOpen ? (
                     <>
