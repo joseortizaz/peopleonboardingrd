@@ -87,6 +87,12 @@ export default async function AppLayout({
                   Permisos
                 </Link>
                 <Link
+                  href="/app/beneficios"
+                  className="text-sm text-gray-600 hover:text-gray-900"
+                >
+                  Beneficios
+                </Link>
+                <Link
                   href="/app/comunicacion"
                   className="text-sm text-gray-600 hover:text-gray-900"
                 >

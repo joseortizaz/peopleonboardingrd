@@ -71,6 +71,28 @@ const dateTimeFmt = (d: string) =>
     minute: "2-digit",
   });
 
+const benefitCategoryLabel: Record<string, string> = {
+  ars: "ARS",
+  seguro_vida: "Seguro de vida",
+  vale_alimentacion: "Vale de alimentación",
+  convenio: "Convenio",
+  otro: "Otro",
+};
+
+const dependentRelationshipLabel: Record<string, string> = {
+  conyuge: "Cónyuge",
+  hijo: "Hijo",
+  hija: "Hija",
+  padre: "Padre",
+  madre: "Madre",
+  otro: "Otro",
+};
+
+const currency = new Intl.NumberFormat("es-DO", {
+  style: "currency",
+  currency: "DOP",
+});
+
 export default async function MiEspacioPage({
   searchParams,
 }: {
@@ -120,6 +142,8 @@ export default async function MiEspacioPage({
       ).data
     : null;
 
+  const today = new Date().toISOString().slice(0, 10);
+
   const [
     { data: evaluations },
     { data: onboardingProcess },
@@ -127,6 +151,7 @@ export default async function MiEspacioPage({
     { data: timeEntries },
     { data: vacationBalanceRows },
     { data: myLeaveRequests },
+    { data: myBenefits },
   ] = await Promise.all([
     supabase
       .from("evaluations")
@@ -158,7 +183,23 @@ export default async function MiEspacioPage({
       .select("id, type, start_date, end_date, days_requested, reason, status, decision_notes")
       .eq("employee_id", employee.id)
       .order("created_at", { ascending: false }),
+    supabase
+      .from("employee_benefits")
+      .select(
+        "id, start_date, end_date, benefit_types(name, category, provider, employer_cost, employee_cost)"
+      )
+      .eq("employee_id", employee.id)
+      .or(`end_date.is.null,end_date.gte.${today}`)
+      .order("start_date", { ascending: false }),
   ]);
+
+  const myBenefitIds = (myBenefits ?? []).map((b) => b.id);
+  const { data: myBenefitDependents } = myBenefitIds.length
+    ? await supabase
+        .from("benefit_dependents")
+        .select("id, employee_benefit_id, full_name, relationship")
+        .in("employee_benefit_id", myBenefitIds)
+    : { data: [] as { id: string; employee_benefit_id: string; full_name: string; relationship: string }[] };
 
   const vacationBalance = vacationBalanceRows?.[0] ?? {
     accrued: 0,
@@ -341,6 +382,57 @@ export default async function MiEspacioPage({
               </div>
             </div>
           ))}
+        </div>
+      </div>
+
+      <div className="mt-6 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div className="border-b border-gray-100 px-6 py-4">
+          <h2 className="text-sm font-medium text-gray-700">Mis beneficios</h2>
+        </div>
+        <div className="divide-y divide-gray-100">
+          {(myBenefits ?? []).length === 0 && (
+            <p className="px-6 py-6 text-center text-sm text-gray-500">
+              No tienes beneficios activos asignados.
+            </p>
+          )}
+          {(myBenefits ?? []).map((b) => {
+            const benefit = b.benefit_types as unknown as {
+              name: string;
+              category: string;
+              provider: string | null;
+              employer_cost: number;
+              employee_cost: number;
+            } | null;
+            const deps = (myBenefitDependents ?? []).filter(
+              (d) => d.employee_benefit_id === b.id
+            );
+            return (
+              <div key={b.id} className="px-6 py-4">
+                <p className="text-sm font-medium text-gray-900">
+                  {benefit?.name ?? "—"}{" "}
+                  <span className="ml-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+                    {benefitCategoryLabel[benefit?.category ?? "otro"]}
+                  </span>
+                </p>
+                <p className="text-xs text-gray-500">
+                  {benefit?.provider ? `${benefit.provider} · ` : ""}Aporte empresa{" "}
+                  {currency.format(benefit?.employer_cost ?? 0)} · Mi aporte{" "}
+                  {currency.format(benefit?.employee_cost ?? 0)} · Desde {dateFmt(b.start_date)}
+                </p>
+                {deps.length > 0 && (
+                  <p className="mt-1 text-xs text-gray-400">
+                    Dependientes:{" "}
+                    {deps
+                      .map(
+                        (d) =>
+                          `${d.full_name} (${dependentRelationshipLabel[d.relationship] ?? d.relationship})`
+                      )
+                      .join(", ")}
+                  </p>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
 
