@@ -69,10 +69,50 @@ export default async function AppLayout({
                   Nómina
                 </Link>
                 <Link
+                  href="/app/documentos"
+                  className="text-sm text-gray-600 hover:text-gray-900"
+                >
+                  Documentos
+                </Link>
+                <Link
+                  href="/app/comunicacion"
+                  className="text-sm text-gray-600 hover:text-gray-900"
+                >
+                  Comunicación
+                </Link>
+                <Link
+                  href="/app/encuestas"
+                  className="text-sm text-gray-600 hover:text-gray-900"
+                >
+                  Encuestas
+                </Link>
+                <Link
+                  href="/app/analytics"
+                  className="text-sm text-gray-600 hover:text-gray-900"
+                >
+                  Analytics
+                </Link>
+                <Link
                   href="/app/portal-cliente/gestionar"
                   className="text-sm text-gray-600 hover:text-gray-900"
                 >
                   Portal del cliente
+                </Link>
+              </>
+            )}
+            {tenant?.myRole && tenant.myRole !== "client" && !isManager && (
+              <>
+                <Link
+                  href="/app/comunicacion"
+                  className="text-sm text-gray-600 hover:text-gray-900"
+                >
+                  Comunicación
+                </Link>
+                <Link
+                  href="/app/encuestas"
+                  className="text-sm text-gray-600 hover:text-gray-900"
+                >
+                  Encuestas
                 </Link>
               </>
             )}

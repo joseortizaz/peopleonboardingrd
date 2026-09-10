@@ -3,6 +3,25 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentTenant } from "@/lib/supabase/tenant";
 import { toggleOnboardingTask } from "../incorporacion/actions";
+import DownloadDocumentButton from "../documentos/DownloadDocumentButton";
+
+function expirationBadge(expiresAt: string | null) {
+  if (!expiresAt) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const exp = new Date(expiresAt + "T00:00:00");
+  const diffDays = Math.round((exp.getTime() - today.getTime()) / 86400000);
+
+  if (diffDays < 0) {
+    return { label: "Vencido", className: "bg-red-100 text-red-700" };
+  }
+  if (diffDays <= 30) {
+    return { label: "Por vencer", className: "bg-amber-100 text-amber-700" };
+  }
+  return { label: "Vigente", className: "bg-emerald-100 text-emerald-700" };
+}
+
+const dateFmt = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("es-DO");
 
 const statusLabel: Record<string, string> = {
   active: "Activo",
@@ -65,21 +84,27 @@ export default async function MiEspacioPage() {
       ).data
     : null;
 
-  const [{ data: evaluations }, { data: onboardingProcess }] = await Promise.all([
-    supabase
-      .from("evaluations")
-      .select("id, type, status, overall_score, completed_at, evaluation_templates(name)")
-      .eq("employee_id", employee.id)
-      .eq("status", "completada")
-      .order("completed_at", { ascending: false }),
-    supabase
-      .from("onboarding_processes")
-      .select("id, status, started_at, template_name")
-      .eq("employee_id", employee.id)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-  ]);
+  const [{ data: evaluations }, { data: onboardingProcess }, { data: myDocuments }] =
+    await Promise.all([
+      supabase
+        .from("evaluations")
+        .select("id, type, status, overall_score, completed_at, evaluation_templates(name)")
+        .eq("employee_id", employee.id)
+        .eq("status", "completada")
+        .order("completed_at", { ascending: false }),
+      supabase
+        .from("onboarding_processes")
+        .select("id, status, started_at, template_name")
+        .eq("employee_id", employee.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from("employee_documents")
+        .select("id, doc_type, file_name, expires_at")
+        .eq("employee_id", employee.id)
+        .order("created_at", { ascending: false }),
+    ]);
 
   const onboardingTasks = onboardingProcess
     ? (
@@ -203,6 +228,49 @@ export default async function MiEspacioPage() {
           </div>
         </div>
       )}
+
+      <div className="mt-6 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div className="border-b border-gray-100 px-6 py-4">
+          <h2 className="text-sm font-medium text-gray-700">Mis documentos</h2>
+        </div>
+        <div className="divide-y divide-gray-100">
+          {(myDocuments ?? []).length === 0 && (
+            <p className="px-6 py-6 text-center text-sm text-gray-500">
+              Aún no tienes documentos cargados en tu expediente.
+            </p>
+          )}
+          {(myDocuments ?? []).map((d) => {
+            const badge = expirationBadge(d.expires_at);
+            return (
+              <div
+                key={d.id}
+                className="flex items-center justify-between px-6 py-4"
+              >
+                <div>
+                  <p className="text-sm font-medium text-gray-900">
+                    {d.doc_type}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {d.file_name}
+                    {d.expires_at && (
+                      <>
+                        {" · "}
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-xs font-medium ${badge?.className}`}
+                        >
+                          {badge?.label}
+                        </span>{" "}
+                        {dateFmt(d.expires_at)}
+                      </>
+                    )}
+                  </p>
+                </div>
+                <DownloadDocumentButton documentId={d.id} />
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
       <div className="mt-6 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         <div className="border-b border-gray-100 px-6 py-4">
