@@ -502,6 +502,14 @@ export default async function MiEspacioPage({
                       ? ` · Certificado: completado el ${new Date(en.completed_at).toLocaleDateString("es-DO")}`
                       : ""}
                   </p>
+                  {en.completed_at && (
+                    <a
+                      href={`/api/capacitacion/${en.id}/certificado`}
+                      className="mt-1 inline-block text-xs font-medium text-gray-700 hover:underline"
+                    >
+                      Descargar certificado (PDF)
+                    </a>
+                  )}
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <span

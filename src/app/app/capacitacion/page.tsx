@@ -282,6 +282,14 @@ export default async function CapacitacionPage({
                   >
                     {statusLabel[e.status] ?? e.status}
                   </span>
+                  {e.status === "completada" && (
+                    <a
+                      href={`/api/capacitacion/${e.id}/certificado`}
+                      className="text-xs text-gray-600 hover:text-gray-900 hover:underline"
+                    >
+                      Certificado
+                    </a>
+                  )}
                   <form action={deleteEnrollment.bind(null, e.id)}>
                     <button className="text-xs text-red-600 hover:underline">Eliminar</button>
                   </form>
