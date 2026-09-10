@@ -18,7 +18,9 @@ export async function enrollFactor(
   // ejemplo si el usuario cerró la pantalla antes de escanear el QR), para
   // no acumular factores "colgados" cada vez que reintenta.
   const { data: existing } = await supabase.auth.mfa.listFactors();
-  const pending = existing?.totp?.find((f) => f.status === "unverified");
+  const pending = existing?.all?.find(
+    (f) => f.factor_type === "totp" && f.status === "unverified"
+  );
   if (pending) {
     await supabase.auth.mfa.unenroll({ factorId: pending.id });
   }
