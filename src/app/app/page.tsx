@@ -30,6 +30,12 @@ export default async function AppHomePage() {
     .eq("tenant_id", tenant.id)
     .eq("status", "activa");
 
+  const { count: pendingLeaveRequests } = await supabase
+    .from("leave_requests")
+    .select("id", { count: "exact", head: true })
+    .eq("tenant_id", tenant.id)
+    .eq("status", "pendiente");
+
   return (
     <div className="mx-auto max-w-3xl px-6 py-10">
       <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
@@ -133,6 +139,33 @@ export default async function AppHomePage() {
           </h2>
           <p className="mt-1 text-sm text-gray-500">
             Expediente digital por empleado, con alerta de documentos por vencer.
+          </p>
+        </Link>
+
+        <Link
+          href="/app/asistencia"
+          className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:border-gray-300"
+        >
+          <h2 className="font-medium text-gray-900">Asistencia</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            Horarios por empleado y registro de marcaje web.
+          </p>
+        </Link>
+
+        <Link
+          href="/app/permisos"
+          className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:border-gray-300"
+        >
+          <h2 className="flex items-center gap-2 font-medium text-gray-900">
+            Permisos
+            {!!pendingLeaveRequests && pendingLeaveRequests > 0 && (
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                {pendingLeaveRequests} pendiente(s)
+              </span>
+            )}
+          </h2>
+          <p className="mt-1 text-sm text-gray-500">
+            Solicitudes de vacaciones y permisos por aprobar.
           </p>
         </Link>
 

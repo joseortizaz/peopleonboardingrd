@@ -4,6 +4,12 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentTenant } from "@/lib/supabase/tenant";
 import { toggleOnboardingTask } from "../incorporacion/actions";
 import DownloadDocumentButton from "../documentos/DownloadDocumentButton";
+import {
+  clockInAction,
+  clockOutAction,
+  requestLeaveAction,
+  cancelLeaveRequestAction,
+} from "../asistencia/actions";
 
 function expirationBadge(expiresAt: string | null) {
   if (!expiresAt) return null;
@@ -40,7 +46,37 @@ const onboardingStatusLabel: Record<string, string> = {
   completado: "Completado",
 };
 
-export default async function MiEspacioPage() {
+const leaveTypeLabel: Record<string, string> = {
+  vacaciones: "Vacaciones",
+  permiso: "Permiso",
+};
+
+const leaveStatusLabel: Record<string, string> = {
+  pendiente: "Pendiente",
+  aprobada: "Aprobada",
+  rechazada: "Rechazada",
+};
+
+const leaveStatusClass: Record<string, string> = {
+  pendiente: "bg-gray-900 text-white",
+  aprobada: "bg-emerald-100 text-emerald-800",
+  rechazada: "bg-red-100 text-red-700",
+};
+
+const dateTimeFmt = (d: string) =>
+  new Date(d).toLocaleString("es-DO", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+export default async function MiEspacioPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const { error } = await searchParams;
   const tenant = await getCurrentTenant();
   if (!tenant) redirect("/app/onboarding");
   if (tenant.myRole === "client") redirect("/app/portal-cliente");
@@ -84,27 +120,52 @@ export default async function MiEspacioPage() {
       ).data
     : null;
 
-  const [{ data: evaluations }, { data: onboardingProcess }, { data: myDocuments }] =
-    await Promise.all([
-      supabase
-        .from("evaluations")
-        .select("id, type, status, overall_score, completed_at, evaluation_templates(name)")
-        .eq("employee_id", employee.id)
-        .eq("status", "completada")
-        .order("completed_at", { ascending: false }),
-      supabase
-        .from("onboarding_processes")
-        .select("id, status, started_at, template_name")
-        .eq("employee_id", employee.id)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-      supabase
-        .from("employee_documents")
-        .select("id, doc_type, file_name, expires_at")
-        .eq("employee_id", employee.id)
-        .order("created_at", { ascending: false }),
-    ]);
+  const [
+    { data: evaluations },
+    { data: onboardingProcess },
+    { data: myDocuments },
+    { data: timeEntries },
+    { data: vacationBalanceRows },
+    { data: myLeaveRequests },
+  ] = await Promise.all([
+    supabase
+      .from("evaluations")
+      .select("id, type, status, overall_score, completed_at, evaluation_templates(name)")
+      .eq("employee_id", employee.id)
+      .eq("status", "completada")
+      .order("completed_at", { ascending: false }),
+    supabase
+      .from("onboarding_processes")
+      .select("id, status, started_at, template_name")
+      .eq("employee_id", employee.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("employee_documents")
+      .select("id, doc_type, file_name, expires_at")
+      .eq("employee_id", employee.id)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("time_clock_entries")
+      .select("id, clock_in, clock_out, is_late")
+      .eq("employee_id", employee.id)
+      .order("clock_in", { ascending: false })
+      .limit(7),
+    supabase.rpc("get_vacation_balance", { p_employee_id: employee.id }),
+    supabase
+      .from("leave_requests")
+      .select("id, type, start_date, end_date, days_requested, reason, status, decision_notes")
+      .eq("employee_id", employee.id)
+      .order("created_at", { ascending: false }),
+  ]);
+
+  const vacationBalance = vacationBalanceRows?.[0] ?? {
+    accrued: 0,
+    used: 0,
+    available: 0,
+  };
+  const currentlyClockedIn = !!(timeEntries ?? [])[0] && !(timeEntries ?? [])[0].clock_out;
 
   const onboardingTasks = onboardingProcess
     ? (
@@ -124,6 +185,12 @@ export default async function MiEspacioPage() {
       <h1 className="text-xl font-semibold text-gray-900">Mi espacio</h1>
       <p className="mt-1 text-sm text-gray-500">{tenant.name}</p>
 
+      {error && (
+        <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
       <div className="mt-6 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
         <h2 className="text-sm font-medium text-gray-700">Mi ficha</h2>
         <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
@@ -142,6 +209,139 @@ export default async function MiEspacioPage() {
             {statusLabel[employee.status] ?? employee.status}
           </dd>
         </dl>
+      </div>
+
+      <div className="mt-6 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-medium text-gray-700">Marcaje</h2>
+          {currentlyClockedIn ? (
+            <form action={clockOutAction.bind(null, tenant.id, "/app/mi-espacio")}>
+              <button className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800">
+                Marcar salida
+              </button>
+            </form>
+          ) : (
+            <form action={clockInAction.bind(null, tenant.id, "/app/mi-espacio")}>
+              <button className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800">
+                Marcar entrada
+              </button>
+            </form>
+          )}
+        </div>
+        <div className="mt-3 divide-y divide-gray-100">
+          {(timeEntries ?? []).length === 0 && (
+            <p className="py-3 text-sm text-gray-500">Aún no tienes marcajes.</p>
+          )}
+          {(timeEntries ?? []).map((t) => (
+            <div key={t.id} className="flex items-center justify-between py-2 text-sm">
+              <span className="text-gray-900">
+                {dateTimeFmt(t.clock_in)}
+                {t.is_late && (
+                  <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                    Tardanza
+                  </span>
+                )}
+              </span>
+              <span className="text-gray-500">
+                {t.clock_out ? `→ ${dateTimeFmt(t.clock_out)}` : "En curso"}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-6 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+        <h2 className="text-sm font-medium text-gray-700">Vacaciones y permisos</h2>
+        <p className="mt-1 text-xs text-gray-500">
+          Balance de vacaciones: {vacationBalance.accrued} día(s) acumulados −{" "}
+          {vacationBalance.used} usado(s) ={" "}
+          <span className="font-medium text-gray-900">
+            {vacationBalance.available} disponible(s)
+          </span>
+        </p>
+
+        <form
+          action={requestLeaveAction.bind(null, tenant.id)}
+          className="mt-3 flex flex-wrap items-end gap-3"
+        >
+          <div>
+            <label className="block text-xs text-gray-500">Tipo</label>
+            <select
+              name="type"
+              defaultValue="vacaciones"
+              className="mt-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
+            >
+              <option value="vacaciones">Vacaciones</option>
+              <option value="permiso">Permiso</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500">Desde</label>
+            <input
+              name="start_date"
+              type="date"
+              required
+              className="mt-1 rounded-md border border-gray-300 px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500">Hasta</label>
+            <input
+              name="end_date"
+              type="date"
+              required
+              className="mt-1 rounded-md border border-gray-300 px-3 py-2 text-sm"
+            />
+          </div>
+          <input
+            name="reason"
+            type="text"
+            placeholder="Motivo (obligatorio en permisos)"
+            className="min-w-[200px] flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm"
+          />
+          <button
+            type="submit"
+            className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
+          >
+            Solicitar
+          </button>
+        </form>
+
+        <div className="mt-4 divide-y divide-gray-100 border-t border-gray-100">
+          {(myLeaveRequests ?? []).length === 0 && (
+            <p className="py-3 text-sm text-gray-500">Aún no tienes solicitudes.</p>
+          )}
+          {(myLeaveRequests ?? []).map((r) => (
+            <div key={r.id} className="flex items-start justify-between gap-3 py-3">
+              <div>
+                <p className="text-sm text-gray-900">
+                  {leaveTypeLabel[r.type] ?? r.type} · {dateFmt(r.start_date)} →{" "}
+                  {dateFmt(r.end_date)} ({r.days_requested} día(s))
+                </p>
+                {r.reason && <p className="text-xs text-gray-500">{r.reason}</p>}
+                {r.decision_notes && (
+                  <p className="text-xs text-gray-400">Nota: {r.decision_notes}</p>
+                )}
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <span
+                  className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                    leaveStatusClass[r.status] ?? "bg-gray-100 text-gray-600"
+                  }`}
+                >
+                  {leaveStatusLabel[r.status] ?? r.status}
+                </span>
+                {r.status === "pendiente" && (
+                  <form action={cancelLeaveRequestAction.bind(null, r.id)}>
+                    <button className="text-xs text-red-600 hover:underline">
+                      Cancelar
+                    </button>
+                  </form>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
       {onboardingProcess && (

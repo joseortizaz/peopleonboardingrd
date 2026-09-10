@@ -75,6 +75,18 @@ export default async function AppLayout({
                   Documentos
                 </Link>
                 <Link
+                  href="/app/asistencia"
+                  className="text-sm text-gray-600 hover:text-gray-900"
+                >
+                  Asistencia
+                </Link>
+                <Link
+                  href="/app/permisos"
+                  className="text-sm text-gray-600 hover:text-gray-900"
+                >
+                  Permisos
+                </Link>
+                <Link
                   href="/app/comunicacion"
                   className="text-sm text-gray-600 hover:text-gray-900"
                 >
