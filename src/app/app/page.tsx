@@ -3,6 +3,24 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentTenant, isManagerRole } from "@/lib/supabase/tenant";
 
+// Mismo esquema de color que TopNav.tsx: cada área del menú superior tiene
+// un color fijo, y estas tarjetas usan el mismo color para que la
+// asociación visual entre el menú y el dashboard sea consistente. Las
+// clases están escritas de forma literal (no interpoladas) para que el
+// escaneo de contenido de Tailwind las detecte.
+const CARD_ACCENT = {
+  indigo: "border-t-indigo-400 hover:border-indigo-300",
+  emerald: "border-t-emerald-400 hover:border-emerald-300",
+  amber: "border-t-amber-400 hover:border-amber-300",
+  rose: "border-t-rose-400 hover:border-rose-300",
+  sky: "border-t-sky-400 hover:border-sky-300",
+  teal: "border-t-teal-400 hover:border-teal-300",
+  violet: "border-t-violet-400 hover:border-violet-300",
+} as const;
+
+const CARD_BASE =
+  "rounded-xl border border-gray-200 border-t-4 bg-white p-6 shadow-sm transition-colors";
+
 export default async function AppHomePage() {
   const tenant = await getCurrentTenant();
 
@@ -93,7 +111,7 @@ export default async function AppHomePage() {
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
         <Link
           href="/app/organizacion"
-          className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:border-gray-300"
+          className={`${CARD_BASE} ${CARD_ACCENT.indigo}`}
         >
           <h2 className="font-medium text-gray-900">Estructura organizacional</h2>
           <p className="mt-1 text-sm text-gray-500">
@@ -103,7 +121,7 @@ export default async function AppHomePage() {
 
         <Link
           href="/app/ats"
-          className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:border-gray-300"
+          className={`${CARD_BASE} ${CARD_ACCENT.indigo}`}
         >
           <h2 className="font-medium text-gray-900">Reclutamiento (ATS)</h2>
           <p className="mt-1 text-sm text-gray-500">
@@ -113,7 +131,7 @@ export default async function AppHomePage() {
 
         <Link
           href="/app/empleados"
-          className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:border-gray-300"
+          className={`${CARD_BASE} ${CARD_ACCENT.indigo}`}
         >
           <h2 className="font-medium text-gray-900">Empleados</h2>
           <p className="mt-1 text-sm text-gray-500">
@@ -123,7 +141,7 @@ export default async function AppHomePage() {
 
         <Link
           href="/app/evaluaciones"
-          className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:border-gray-300"
+          className={`${CARD_BASE} ${CARD_ACCENT.rose}`}
         >
           <h2 className="font-medium text-gray-900">Evaluación de desempeño</h2>
           <p className="mt-1 text-sm text-gray-500">
@@ -133,7 +151,7 @@ export default async function AppHomePage() {
 
         <Link
           href="/app/incorporacion"
-          className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:border-gray-300"
+          className={`${CARD_BASE} ${CARD_ACCENT.indigo}`}
         >
           <h2 className="font-medium text-gray-900">Incorporación</h2>
           <p className="mt-1 text-sm text-gray-500">
@@ -143,7 +161,7 @@ export default async function AppHomePage() {
 
         <Link
           href="/app/bajas"
-          className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:border-gray-300"
+          className={`${CARD_BASE} ${CARD_ACCENT.indigo}`}
         >
           <h2 className="font-medium text-gray-900">Bajas</h2>
           <p className="mt-1 text-sm text-gray-500">
@@ -153,7 +171,7 @@ export default async function AppHomePage() {
 
         <Link
           href="/app/portal-cliente/gestionar"
-          className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:border-gray-300"
+          className={`${CARD_BASE} ${CARD_ACCENT.teal}`}
         >
           <h2 className="font-medium text-gray-900">Portal del cliente</h2>
           <p className="mt-1 text-sm text-gray-500">
@@ -164,7 +182,7 @@ export default async function AppHomePage() {
 
         <Link
           href="/app/nomina"
-          className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:border-gray-300"
+          className={`${CARD_BASE} ${CARD_ACCENT.emerald}`}
         >
           <h2 className="font-medium text-gray-900">Nómina</h2>
           <p className="mt-1 text-sm text-gray-500">
@@ -174,7 +192,7 @@ export default async function AppHomePage() {
 
         <Link
           href="/app/documentos"
-          className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:border-gray-300"
+          className={`${CARD_BASE} ${CARD_ACCENT.amber}`}
         >
           <h2 className="flex items-center gap-2 font-medium text-gray-900">
             Documentos
@@ -197,7 +215,7 @@ export default async function AppHomePage() {
 
         <Link
           href="/app/asistencia"
-          className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:border-gray-300"
+          className={`${CARD_BASE} ${CARD_ACCENT.emerald}`}
         >
           <h2 className="font-medium text-gray-900">Asistencia</h2>
           <p className="mt-1 text-sm text-gray-500">
@@ -207,7 +225,7 @@ export default async function AppHomePage() {
 
         <Link
           href="/app/permisos"
-          className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:border-gray-300"
+          className={`${CARD_BASE} ${CARD_ACCENT.emerald}`}
         >
           <h2 className="flex items-center gap-2 font-medium text-gray-900">
             Permisos
@@ -224,7 +242,7 @@ export default async function AppHomePage() {
 
         <Link
           href="/app/beneficios"
-          className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:border-gray-300"
+          className={`${CARD_BASE} ${CARD_ACCENT.emerald}`}
         >
           <h2 className="font-medium text-gray-900">Beneficios</h2>
           <p className="mt-1 text-sm text-gray-500">
@@ -234,7 +252,7 @@ export default async function AppHomePage() {
 
         <Link
           href="/app/capacitacion"
-          className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:border-gray-300"
+          className={`${CARD_BASE} ${CARD_ACCENT.rose}`}
         >
           <h2 className="font-medium text-gray-900">Capacitación</h2>
           <p className="mt-1 text-sm text-gray-500">
@@ -244,7 +262,7 @@ export default async function AppHomePage() {
 
         <Link
           href="/app/comunicacion"
-          className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:border-gray-300"
+          className={`${CARD_BASE} ${CARD_ACCENT.sky}`}
         >
           <h2 className="font-medium text-gray-900">Comunicación</h2>
           <p className="mt-1 text-sm text-gray-500">
@@ -254,7 +272,7 @@ export default async function AppHomePage() {
 
         <Link
           href="/app/encuestas"
-          className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:border-gray-300"
+          className={`${CARD_BASE} ${CARD_ACCENT.sky}`}
         >
           <h2 className="flex items-center gap-2 font-medium text-gray-900">
             Encuestas
@@ -271,7 +289,7 @@ export default async function AppHomePage() {
 
         <Link
           href="/app/analytics"
-          className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:border-gray-300"
+          className={`${CARD_BASE} ${CARD_ACCENT.sky}`}
         >
           <h2 className="font-medium text-gray-900">People analytics</h2>
           <p className="mt-1 text-sm text-gray-500">
@@ -282,7 +300,7 @@ export default async function AppHomePage() {
         {tenant.myRole === "account_admin" && (
           <Link
             href="/app/facturacion"
-            className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:border-gray-300"
+            className={`${CARD_BASE} ${CARD_ACCENT.violet}`}
           >
             <h2 className="font-medium text-gray-900">Facturación</h2>
             <p className="mt-1 text-sm text-gray-500">

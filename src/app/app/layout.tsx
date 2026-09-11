@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentTenant, isTenantManagerRole } from "@/lib/supabase/tenant";
 import { logout } from "../login/actions";
+import { TopNav } from "./TopNav";
 
 export default async function AppLayout({
   children,
@@ -24,168 +24,17 @@ export default async function AppLayout({
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="border-b border-gray-200 bg-white">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-3">
-          <nav className="flex items-center gap-5">
-            <Link href="/app" className="text-sm font-semibold text-gray-900">
-              People Onboarding RD
-            </Link>
-            {isManager && (
-              <>
-                <Link
-                  href="/app/organizacion"
-                  className="text-sm text-gray-600 hover:text-gray-900"
-                >
-                  Estructura organizacional
-                </Link>
-                <Link
-                  href="/app/ats"
-                  className="text-sm text-gray-600 hover:text-gray-900"
-                >
-                  Reclutamiento
-                </Link>
-                <Link
-                  href="/app/empleados"
-                  className="text-sm text-gray-600 hover:text-gray-900"
-                >
-                  Empleados
-                </Link>
-                <Link
-                  href="/app/evaluaciones"
-                  className="text-sm text-gray-600 hover:text-gray-900"
-                >
-                  Evaluaciones
-                </Link>
-                <Link
-                  href="/app/incorporacion"
-                  className="text-sm text-gray-600 hover:text-gray-900"
-                >
-                  Incorporación
-                </Link>
-                <Link
-                  href="/app/bajas"
-                  className="text-sm text-gray-600 hover:text-gray-900"
-                >
-                  Bajas
-                </Link>
-                <Link
-                  href="/app/nomina"
-                  className="text-sm text-gray-600 hover:text-gray-900"
-                >
-                  Nómina
-                </Link>
-                <Link
-                  href="/app/documentos"
-                  className="text-sm text-gray-600 hover:text-gray-900"
-                >
-                  Documentos
-                </Link>
-                <Link
-                  href="/app/asistencia"
-                  className="text-sm text-gray-600 hover:text-gray-900"
-                >
-                  Asistencia
-                </Link>
-                <Link
-                  href="/app/permisos"
-                  className="text-sm text-gray-600 hover:text-gray-900"
-                >
-                  Permisos
-                </Link>
-                <Link
-                  href="/app/beneficios"
-                  className="text-sm text-gray-600 hover:text-gray-900"
-                >
-                  Beneficios
-                </Link>
-                <Link
-                  href="/app/capacitacion"
-                  className="text-sm text-gray-600 hover:text-gray-900"
-                >
-                  Capacitación
-                </Link>
-                <Link
-                  href="/app/comunicacion"
-                  className="text-sm text-gray-600 hover:text-gray-900"
-                >
-                  Comunicación
-                </Link>
-                <Link
-                  href="/app/encuestas"
-                  className="text-sm text-gray-600 hover:text-gray-900"
-                >
-                  Encuestas
-                </Link>
-                <Link
-                  href="/app/analytics"
-                  className="text-sm text-gray-600 hover:text-gray-900"
-                >
-                  Analytics
-                </Link>
-                <Link
-                  href="/app/portal-cliente/gestionar"
-                  className="text-sm text-gray-600 hover:text-gray-900"
-                >
-                  Portal del cliente
-                </Link>
-              </>
-            )}
-            {tenant?.myRole === "account_admin" && (
-              <Link
-                href="/app/facturacion"
-                className="text-sm text-gray-600 hover:text-gray-900"
-              >
-                Facturación
-              </Link>
-            )}
-            {isSuperAdmin && (
-              <Link
-                href="/app/superadmin"
-                className="text-sm text-gray-600 hover:text-gray-900"
-              >
-                Super Admin
-              </Link>
-            )}
-            {tenant?.myRole && tenant.myRole !== "client" && !isManager && !isPureSuperAdmin && (
-              <>
-                <Link
-                  href="/app/comunicacion"
-                  className="text-sm text-gray-600 hover:text-gray-900"
-                >
-                  Comunicación
-                </Link>
-                <Link
-                  href="/app/encuestas"
-                  className="text-sm text-gray-600 hover:text-gray-900"
-                >
-                  Encuestas
-                </Link>
-              </>
-            )}
-            {!isPureSuperAdmin &&
-              (tenant?.myRole === "client" ? (
-                <Link
-                  href="/app/portal-cliente"
-                  className="text-sm text-gray-600 hover:text-gray-900"
-                >
-                  Portal del cliente
-                </Link>
-              ) : (
-                <Link
-                  href="/app/mi-espacio"
-                  className="text-sm text-gray-600 hover:text-gray-900"
-                >
-                  Mi espacio
-                </Link>
-              ))}
-            <Link
-              href="/app/seguridad"
-              className="text-sm text-gray-600 hover:text-gray-900"
-            >
-              Seguridad
-            </Link>
-          </nav>
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-gray-500">{user?.email}</span>
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-2.5">
+          <TopNav
+            isManager={isManager}
+            isPureSuperAdmin={isPureSuperAdmin}
+            isSuperAdmin={!!isSuperAdmin}
+            myRole={tenant?.myRole ?? null}
+          />
+          <div className="flex shrink-0 items-center gap-3">
+            <span className="hidden text-sm text-gray-500 sm:inline">
+              {user?.email}
+            </span>
             <form action={logout}>
               <button
                 type="submit"
