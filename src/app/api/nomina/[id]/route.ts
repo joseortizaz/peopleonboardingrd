@@ -29,7 +29,7 @@ export async function GET(
   const { data: entries } = await supabase
     .from("payroll_entries")
     .select(
-      "gross_salary, sfs_employee, sfs_employer, afp_employee, afp_employer, srl_employer, infotep_employer, isr_withholding, other_bonuses, other_deductions, net_pay, employees(full_name)"
+      "gross_salary, sfs_employee, sfs_employer, afp_employee, afp_employer, srl_employer, infotep_employer, isr_withholding, overtime_hours_35, overtime_hours_100, overtime_pay, other_bonuses, other_deductions, net_pay, employees(full_name)"
     )
     .eq("period_id", id)
     .order("created_at", { ascending: true });
@@ -45,6 +45,9 @@ export async function GET(
       "SRL empleador",
       "INFOTEP empleador",
       "ISR retenido",
+      "Horas extra 35%",
+      "Horas extra 100%",
+      "Pago horas extra",
       "Bono",
       "Deduccion",
       "Neto a pagar",
@@ -62,6 +65,9 @@ export async function GET(
         String(e.srl_employer),
         String(e.infotep_employer),
         String(e.isr_withholding),
+        String(e.overtime_hours_35),
+        String(e.overtime_hours_100),
+        String(e.overtime_pay),
         String(e.other_bonuses),
         String(e.other_deductions),
         String(e.net_pay),

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentTenant, isManagerRole } from "@/lib/supabase/tenant";
-import { createPayrollPeriod } from "./actions";
+import { createPayrollPeriod, generateRegaliaPascual } from "./actions";
 
 const currency = new Intl.NumberFormat("es-DO", {
   style: "currency",
@@ -10,6 +10,13 @@ const currency = new Intl.NumberFormat("es-DO", {
 });
 
 const dateFmt = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("es-DO");
+
+const periodTypeLabel: Record<string, string> = {
+  mensual: "Mensual",
+  quincenal: "Quincenal",
+  regalia: "Regalía pascual",
+  liquidacion: "Liquidación",
+};
 
 export default async function NominaPage({
   searchParams,
@@ -55,6 +62,8 @@ export default async function NominaPage({
   }
 
   const createPeriodForTenant = createPayrollPeriod.bind(null, tenant.id);
+  const generateRegaliaForTenant = generateRegaliaPascual.bind(null, tenant.id);
+  const currentYear = new Date().getFullYear();
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-10">
@@ -136,8 +145,56 @@ export default async function NominaPage({
           <Link href="/app/empleados" className="underline">
             Empleados
           </Link>
-          . Este es un cálculo de referencia — valídalo con un contador o
-          gestor laboral antes de usarlo para pagos reales.
+          . Las horas extra se calculan automáticamente a partir del marcaje
+          registrado en{" "}
+          <Link href="/app/asistencia" className="underline">
+            Asistencia
+          </Link>{" "}
+          (Art. 203-204: recargo de 35% de la hora 45 a la 68 semanal, 100%
+          de ahí en adelante). Este es un cálculo de referencia — valídalo
+          con un contador o gestor laboral antes de usarlo para pagos
+          reales.
+        </p>
+      </div>
+
+      <div className="mt-6 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+        <h2 className="text-sm font-medium text-gray-700">Generar regalía pascual</h2>
+        <form action={generateRegaliaForTenant} className="mt-3 flex flex-wrap items-end gap-3">
+          <div>
+            <label className="block text-xs text-gray-500">Año</label>
+            <input
+              name="year"
+              type="number"
+              defaultValue={currentYear}
+              min="2020"
+              required
+              className="mt-1 w-24 rounded-md border border-gray-300 px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500">Fecha de pago</label>
+            <input
+              name="pay_date"
+              type="date"
+              defaultValue={`${currentYear}-12-15`}
+              required
+              className="mt-1 rounded-md border border-gray-300 px-3 py-2 text-sm"
+            />
+          </div>
+          <button
+            type="submit"
+            className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
+          >
+            Generar
+          </button>
+        </form>
+        <p className="mt-2 text-xs text-gray-400">
+          Paga a cada empleado activo la doceava parte de su salario
+          acumulado en el año (Art. 219-222), exenta de TSS/ISR. La fecha de
+          pago debe ser antes del 20 de diciembre (Art. 220). Solo se puede
+          generar una vez por año; un empleado que se da de baja durante el
+          año recibe su regalía proporcional dentro de su liquidación, no
+          aquí.
         </p>
       </div>
 
@@ -155,7 +212,7 @@ export default async function NominaPage({
             >
               <div>
                 <p className="text-sm font-medium text-gray-900">
-                  {p.period_type === "quincenal" ? "Quincenal" : "Mensual"} ·{" "}
+                  {periodTypeLabel[p.period_type] ?? p.period_type} ·{" "}
                   {dateFmt(p.start_date)} – {dateFmt(p.end_date)}
                 </p>
                 <p className="text-xs text-gray-500">

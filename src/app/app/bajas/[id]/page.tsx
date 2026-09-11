@@ -40,7 +40,7 @@ export default async function OffboardingProcessDetailPage({
       `id, status, reason, last_working_day, monthly_salary, years_of_service,
        preaviso_days, preaviso_amount, cesantia_days, cesantia_amount,
        vacation_days_pending, vacation_amount, christmas_bonus_amount,
-       total_liquidation, notes, employees(full_name)`
+       total_liquidation, notes, payroll_period_id, employees(full_name)`
     )
     .eq("id", id)
     .eq("tenant_id", tenant.id)
@@ -134,6 +134,18 @@ export default async function OffboardingProcessDetailPage({
             </dd>
           </div>
         </dl>
+        {process.payroll_period_id && (
+          <p className="mt-3 text-xs text-gray-400">
+            Este total quedó registrado en{" "}
+            <Link
+              href={`/app/nomina/${process.payroll_period_id}`}
+              className="underline"
+            >
+              Nómina
+            </Link>{" "}
+            para su historial y export bancario.
+          </p>
+        )}
       </div>
 
       <div className="mt-6 space-y-2">

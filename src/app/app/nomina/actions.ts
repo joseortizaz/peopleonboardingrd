@@ -31,6 +31,29 @@ export async function createPayrollPeriod(tenantId: string, formData: FormData) 
   redirect(`/app/nomina/${data}`);
 }
 
+export async function generateRegaliaPascual(tenantId: string, formData: FormData) {
+  const supabase = await createClient();
+
+  const yearRaw = formData.get("year") as string;
+  const pay_date = formData.get("pay_date") as string;
+
+  if (!yearRaw || !pay_date) return;
+
+  const { data, error } = await supabase.rpc("generate_regalia_pascual", {
+    p_tenant_id: tenantId,
+    p_year: Number(yearRaw),
+    p_pay_date: pay_date,
+  });
+
+  if (error) {
+    console.error("generateRegaliaPascual error:", error.message);
+    redirect(`/app/nomina?error=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath("/app/nomina");
+  redirect(`/app/nomina/${data}`);
+}
+
 export async function closePayrollPeriod(periodId: string) {
   const supabase = await createClient();
 
