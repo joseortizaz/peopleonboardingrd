@@ -10,6 +10,14 @@ export default async function AppHomePage() {
     redirect("/app/onboarding");
   }
 
+  // Un Super Admin de plataforma no tiene por qué aterrizar en el dashboard
+  // operativo de un tenant cualquiera (aquí solo llega atado a un tenant por
+  // una restricción del esquema, no porque lo gestione) -- su panel es
+  // /app/superadmin. Ver isTenantManagerRole() en tenant.ts para el detalle.
+  if (tenant.myRole === "super_admin") {
+    redirect("/app/superadmin");
+  }
+
   if (!isManagerRole(tenant.myRole)) {
     redirect(tenant.myRole === "client" ? "/app/portal-cliente" : "/app/mi-espacio");
   }
@@ -270,6 +278,19 @@ export default async function AppHomePage() {
             Rotación de personal y costo de nómina por periodo.
           </p>
         </Link>
+
+        {tenant.myRole === "account_admin" && (
+          <Link
+            href="/app/facturacion"
+            className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:border-gray-300"
+          >
+            <h2 className="font-medium text-gray-900">Facturación</h2>
+            <p className="mt-1 text-sm text-gray-500">
+              Consulta tu plan, solicita uno nuevo y sigue el estado de tu
+              pago.
+            </p>
+          </Link>
+        )}
       </div>
     </div>
   );

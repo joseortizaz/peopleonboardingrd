@@ -31,6 +31,19 @@ export function isManagerRole(role: MemberRole | null) {
   return role === "super_admin" || role === "account_admin" || role === "hr_manager";
 }
 
+/**
+ * A diferencia de isManagerRole(), esta EXCLUYE super_admin a propósito.
+ * super_admin es un rol de plataforma (Facturación SaaS, ver sección 13 del
+ * plan de desarrollo) que, por una restricción del esquema, siempre queda
+ * atado técnicamente a algún tenant/cuenta -- pero eso no lo convierte en
+ * gestor de RR.HH. de ese tenant. Se usa para decidir si mostrar el menú
+ * operativo (Nómina, Documentos, etc.) de un tenant específico: solo si el
+ * rol es realmente account_admin/hr_manager de ESE tenant.
+ */
+export function isTenantManagerRole(role: MemberRole | null) {
+  return role === "account_admin" || role === "hr_manager";
+}
+
 async function fetchFirstTenant(
   supabase: Awaited<ReturnType<typeof createClient>>
 ) {

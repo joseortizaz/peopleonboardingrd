@@ -10,12 +10,20 @@ export default function Home() {
         Suite de gestión humana para empresas dominicanas y firmas de
         outsourcing de RR.HH.
       </p>
-      <Link
-        href="/login"
-        className="mt-8 rounded-md bg-gray-900 px-6 py-3 text-sm font-medium text-white hover:bg-gray-800"
-      >
-        Acceso
-      </Link>
+      <div className="mt-8 flex items-center gap-3">
+        <Link
+          href="/login"
+          className="rounded-md bg-gray-900 px-6 py-3 text-sm font-medium text-white hover:bg-gray-800"
+        >
+          Acceso
+        </Link>
+        <Link
+          href="/precios"
+          className="rounded-md border border-gray-300 px-6 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+        >
+          Ver planes
+        </Link>
+      </div>
     </div>
   );
 }

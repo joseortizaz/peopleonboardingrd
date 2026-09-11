@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { createPlan, upsertSubscription } from "./actions";
+import { createPlan, upsertSubscription, resolvePaymentRequest } from "./actions";
 
 const currency = new Intl.NumberFormat("es-DO", {
   style: "currency",
@@ -10,6 +10,9 @@ const currency = new Intl.NumberFormat("es-DO", {
 
 const dateFmt = (d: string | null) =>
   d ? new Date(d + "T00:00:00").toLocaleDateString("es-DO") : "—";
+
+const dateTimeFmt = (d: string | null) =>
+  d ? new Date(d).toLocaleString("es-DO") : "—";
 
 type Account = {
   id: string;
@@ -24,6 +27,7 @@ type Plan = {
   name: string;
   price_reference: number | null;
   billing_period: string;
+  is_public: boolean;
 };
 
 type Subscription = {
@@ -35,6 +39,17 @@ type Subscription = {
   end_date: string | null;
   notes: string | null;
   updated_at: string;
+};
+
+type PaymentRequest = {
+  id: string;
+  account_id: string;
+  plan_id: string;
+  status: "pendiente" | "confirmada" | "rechazada";
+  note: string | null;
+  created_at: string;
+  resolved_at: string | null;
+  resolution_note: string | null;
 };
 
 const statusLabel: Record<Subscription["status"], string> = {
@@ -60,25 +75,35 @@ export default async function SuperAdminPage({
   const { data: isSuperAdmin } = await supabase.rpc("is_super_admin");
   if (!isSuperAdmin) redirect("/app");
 
-  const [{ data: accounts }, { data: plans }, { data: subs }] = await Promise.all([
-    supabase
-      .from("accounts")
-      .select("id, name, kind, rnc, created_at")
-      .order("created_at", { ascending: true }),
-    supabase
-      .from("subscription_plans")
-      .select("id, name, price_reference, billing_period")
-      .order("created_at", { ascending: true }),
-    supabase
-      .from("account_subscriptions")
-      .select("id, account_id, plan_id, status, start_date, end_date, notes, updated_at"),
-  ]);
+  const [{ data: accounts }, { data: plans }, { data: subs }, { data: requests }] =
+    await Promise.all([
+      supabase
+        .from("accounts")
+        .select("id, name, kind, rnc, created_at")
+        .order("created_at", { ascending: true }),
+      supabase
+        .from("subscription_plans")
+        .select("id, name, price_reference, billing_period, is_public")
+        .order("created_at", { ascending: true }),
+      supabase
+        .from("account_subscriptions")
+        .select("id, account_id, plan_id, status, start_date, end_date, notes, updated_at"),
+      supabase
+        .from("subscription_payment_requests")
+        .select("id, account_id, plan_id, status, note, created_at, resolved_at, resolution_note")
+        .order("created_at", { ascending: false }),
+    ]);
 
   const typedAccounts = (accounts ?? []) as Account[];
   const typedPlans = (plans ?? []) as Plan[];
   const typedSubs = (subs ?? []) as Subscription[];
+  const typedRequests = (requests ?? []) as PaymentRequest[];
   const subByAccount = new Map(typedSubs.map((s) => [s.account_id, s]));
   const planById = new Map(typedPlans.map((p) => [p.id, p]));
+  const accountById = new Map(typedAccounts.map((a) => [a.id, a]));
+
+  const pendingRequests = typedRequests.filter((r) => r.status === "pendiente");
+  const resolvedRequests = typedRequests.filter((r) => r.status !== "pendiente").slice(0, 10);
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
@@ -91,9 +116,11 @@ export default async function SuperAdminPage({
       </h1>
       <p className="mt-1 text-sm text-gray-500">
         Activa o desactiva manualmente la suscripción de cada cuenta y
-        configura sus fechas de inicio/fin. Todavía no hay cobro recurrente
-        automático — eso queda para cuando se integre CardNet, una vez haya
-        al menos un cliente facturando.
+        configura sus fechas de inicio/fin, o confirma las solicitudes de
+        pago que los clientes envían desde su propio checkout
+        (/app/facturacion). Todavía no hay cobro recurrente automático — eso
+        queda para cuando se integre CardNet, una vez haya al menos un
+        cliente facturando.
       </p>
 
       {error && (
@@ -101,6 +128,96 @@ export default async function SuperAdminPage({
           {error}
         </div>
       )}
+
+      <section className="mt-8">
+        <h2 className="text-sm font-semibold text-gray-900">
+          Solicitudes de pago pendientes
+          {pendingRequests.length > 0 && (
+            <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+              {pendingRequests.length}
+            </span>
+          )}
+        </h2>
+        <div className="mt-3 space-y-3">
+          {pendingRequests.map((r) => {
+            const acc = accountById.get(r.account_id);
+            const plan = planById.get(r.plan_id);
+            const confirm = resolvePaymentRequest.bind(null, r.id, "confirmar");
+            const reject = resolvePaymentRequest.bind(null, r.id, "rechazar");
+            return (
+              <div
+                key={r.id}
+                className="rounded-xl border border-amber-200 bg-amber-50 p-4"
+              >
+                <p className="text-sm text-gray-900">
+                  <span className="font-medium">{acc?.name ?? "cuenta desconocida"}</span>
+                  {" solicita "}
+                  <span className="font-medium">{plan?.name ?? "plan desconocido"}</span>
+                </p>
+                <p className="mt-1 text-xs text-gray-500">
+                  Enviada el {dateTimeFmt(r.created_at)}
+                  {r.note ? ` · Nota del cliente: "${r.note}"` : ""}
+                </p>
+                <div className="mt-3 flex flex-wrap items-end gap-2">
+                  <form action={confirm} className="flex items-end gap-2">
+                    <input
+                      name="note"
+                      type="text"
+                      placeholder="Nota (opcional)"
+                      className="rounded-md border border-gray-300 px-2 py-1 text-xs"
+                    />
+                    <button
+                      type="submit"
+                      className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
+                    >
+                      Confirmar pago y activar
+                    </button>
+                  </form>
+                  <form action={reject} className="flex items-end gap-2">
+                    <input
+                      name="note"
+                      type="text"
+                      placeholder="Motivo del rechazo (opcional)"
+                      className="rounded-md border border-gray-300 px-2 py-1 text-xs"
+                    />
+                    <button
+                      type="submit"
+                      className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100"
+                    >
+                      Rechazar
+                    </button>
+                  </form>
+                </div>
+              </div>
+            );
+          })}
+          {pendingRequests.length === 0 && (
+            <p className="text-xs text-gray-400">No hay solicitudes pendientes.</p>
+          )}
+        </div>
+
+        {resolvedRequests.length > 0 && (
+          <details className="mt-4">
+            <summary className="cursor-pointer text-xs text-gray-500 hover:text-gray-700">
+              Ver últimas solicitudes resueltas
+            </summary>
+            <div className="mt-2 space-y-1">
+              {resolvedRequests.map((r) => {
+                const acc = accountById.get(r.account_id);
+                const plan = planById.get(r.plan_id);
+                return (
+                  <p key={r.id} className="text-xs text-gray-500">
+                    {acc?.name ?? "—"} · {plan?.name ?? "—"} ·{" "}
+                    {r.status === "confirmada" ? "Confirmada" : "Rechazada"} el{" "}
+                    {dateTimeFmt(r.resolved_at)}
+                    {r.resolution_note ? ` · "${r.resolution_note}"` : ""}
+                  </p>
+                );
+              })}
+            </div>
+          </details>
+        )}
+      </section>
 
       <section className="mt-8">
         <h2 className="text-sm font-semibold text-gray-900">Planes</h2>
@@ -115,12 +232,23 @@ export default async function SuperAdminPage({
               {p.price_reference != null ? currency.format(p.price_reference) : "sin precio"}
               {" / "}
               {p.billing_period}
+              {p.is_public && (
+                <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-emerald-700">
+                  público
+                </span>
+              )}
             </div>
           ))}
           {typedPlans.length === 0 && (
             <p className="text-xs text-gray-400">Aún no hay planes creados.</p>
           )}
         </div>
+        <p className="mt-2 text-xs text-gray-400">
+          Un plan creado aquí queda privado (no aparece en /precios ni en el
+          checkout) hasta marcarlo como público — eso se hace por ahora
+          directo en Supabase (columna <code>is_public</code> de{" "}
+          <code>subscription_plans</code>).
+        </p>
 
         <form action={createPlan} className="mt-3 flex flex-wrap items-end gap-2">
           <div>

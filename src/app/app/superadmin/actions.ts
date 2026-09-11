@@ -56,3 +56,26 @@ export async function upsertSubscription(accountId: string, formData: FormData) 
 
   revalidatePath("/app/superadmin");
 }
+
+export async function resolvePaymentRequest(
+  requestId: string,
+  action: "confirmar" | "rechazar",
+  formData: FormData
+) {
+  const supabase = await createClient();
+
+  const note = (formData.get("note") as string)?.trim() || null;
+
+  const { error } = await supabase.rpc("superadmin_resolve_payment_request", {
+    p_request_id: requestId,
+    p_action: action,
+    p_note: note,
+  });
+
+  if (error) {
+    console.error("resolvePaymentRequest error:", error.message);
+    redirect(`/app/superadmin?error=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath("/app/superadmin");
+}

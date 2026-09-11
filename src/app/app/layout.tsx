@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { getCurrentTenant, isManagerRole } from "@/lib/supabase/tenant";
+import { getCurrentTenant, isTenantManagerRole } from "@/lib/supabase/tenant";
 import { logout } from "../login/actions";
 
 export default async function AppLayout({
@@ -14,7 +14,11 @@ export default async function AppLayout({
   } = await supabase.auth.getUser();
 
   const tenant = await getCurrentTenant();
-  const isManager = isManagerRole(tenant?.myRole ?? null);
+  // Gestiona el tenant (ve Nómina, Documentos, etc.) solo si es de verdad
+  // account_admin/hr_manager de ese tenant -- un super_admin de plataforma
+  // NO cuenta, aunque técnicamente esté atado a un tenant (ver tenant.ts).
+  const isManager = isTenantManagerRole(tenant?.myRole ?? null);
+  const isPureSuperAdmin = tenant?.myRole === "super_admin";
   const { data: isSuperAdmin } = await supabase.rpc("is_super_admin");
 
   return (
@@ -125,6 +129,14 @@ export default async function AppLayout({
                 </Link>
               </>
             )}
+            {tenant?.myRole === "account_admin" && (
+              <Link
+                href="/app/facturacion"
+                className="text-sm text-gray-600 hover:text-gray-900"
+              >
+                Facturación
+              </Link>
+            )}
             {isSuperAdmin && (
               <Link
                 href="/app/superadmin"
@@ -133,7 +145,7 @@ export default async function AppLayout({
                 Super Admin
               </Link>
             )}
-            {tenant?.myRole && tenant.myRole !== "client" && !isManager && (
+            {tenant?.myRole && tenant.myRole !== "client" && !isManager && !isPureSuperAdmin && (
               <>
                 <Link
                   href="/app/comunicacion"
@@ -149,21 +161,22 @@ export default async function AppLayout({
                 </Link>
               </>
             )}
-            {tenant?.myRole === "client" ? (
-              <Link
-                href="/app/portal-cliente"
-                className="text-sm text-gray-600 hover:text-gray-900"
-              >
-                Portal del cliente
-              </Link>
-            ) : (
-              <Link
-                href="/app/mi-espacio"
-                className="text-sm text-gray-600 hover:text-gray-900"
-              >
-                Mi espacio
-              </Link>
-            )}
+            {!isPureSuperAdmin &&
+              (tenant?.myRole === "client" ? (
+                <Link
+                  href="/app/portal-cliente"
+                  className="text-sm text-gray-600 hover:text-gray-900"
+                >
+                  Portal del cliente
+                </Link>
+              ) : (
+                <Link
+                  href="/app/mi-espacio"
+                  className="text-sm text-gray-600 hover:text-gray-900"
+                >
+                  Mi espacio
+                </Link>
+              ))}
             <Link
               href="/app/seguridad"
               className="text-sm text-gray-600 hover:text-gray-900"
