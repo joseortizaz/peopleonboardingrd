@@ -15,6 +15,7 @@ export default async function AppLayout({
 
   const tenant = await getCurrentTenant();
   const isManager = isManagerRole(tenant?.myRole ?? null);
+  const { data: isSuperAdmin } = await supabase.rpc("is_super_admin");
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -123,6 +124,14 @@ export default async function AppLayout({
                   Portal del cliente
                 </Link>
               </>
+            )}
+            {isSuperAdmin && (
+              <Link
+                href="/app/superadmin"
+                className="text-sm text-gray-600 hover:text-gray-900"
+              >
+                Super Admin
+              </Link>
             )}
             {tenant?.myRole && tenant.myRole !== "client" && !isManager && (
               <>

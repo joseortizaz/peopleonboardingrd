@@ -43,11 +43,43 @@ export default async function AppHomePage() {
     .eq("tenant_id", tenant.id)
     .eq("status", "pendiente");
 
+  let subscriptionCard: { planName: string; status: string; endDate: string | null } | null = null;
+  if (tenant.myRole === "account_admin") {
+    const { data: sub } = await supabase
+      .from("account_subscriptions")
+      .select("status, end_date, subscription_plans(name)")
+      .eq("account_id", tenant.accountId)
+      .maybeSingle();
+    if (sub) {
+      const plan = sub.subscription_plans as unknown as { name: string } | null;
+      subscriptionCard = {
+        planName: plan?.name ?? "sin plan",
+        status: sub.status as string,
+        endDate: sub.end_date as string | null,
+      };
+    }
+  }
+
+  const subStatusLabel: Record<string, string> = {
+    activa: "Activa",
+    suspendida: "Suspendida",
+    cancelada: "Cancelada",
+  };
+
   return (
     <div className="mx-auto max-w-3xl px-6 py-10">
       <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
         <p className="text-sm text-gray-500">Cuenta activa</p>
         <p className="mt-1 text-lg font-medium text-gray-900">{tenant.name}</p>
+        {subscriptionCard && (
+          <p className="mt-2 text-xs text-gray-400">
+            Plan: {subscriptionCard.planName} · Estado:{" "}
+            {subStatusLabel[subscriptionCard.status] ?? subscriptionCard.status}
+            {subscriptionCard.endDate
+              ? ` · Vence: ${new Date(subscriptionCard.endDate + "T00:00:00").toLocaleDateString("es-DO")}`
+              : " · Sin fecha de vencimiento"}
+          </p>
+        )}
       </div>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
