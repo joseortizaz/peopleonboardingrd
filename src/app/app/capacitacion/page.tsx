@@ -1,7 +1,17 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentTenant, isManagerRole } from "@/lib/supabase/tenant";
-import { createCourse, deleteCourse, enrollEmployee, deleteEnrollment } from "./actions";
+import { getVideoEmbedUrl } from "@/lib/video";
+import {
+  createCourse,
+  deleteCourse,
+  updateCourseVideo,
+  uploadCourseMaterial,
+  deleteCourseMaterial,
+  enrollEmployee,
+  deleteEnrollment,
+} from "./actions";
+import DownloadMaterialButton from "./DownloadMaterialButton";
 
 const statusLabel: Record<string, string> = {
   pendiente: "Pendiente",
@@ -17,6 +27,12 @@ const statusClass: Record<string, string> = {
 
 const dateFmt = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("es-DO");
 const dateTimeFmt = (d: string) => new Date(d).toLocaleDateString("es-DO");
+
+const fileSizeFmt = (bytes: number | null) => {
+  if (!bytes) return "";
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
 
 const categorySuggestions = [
   "Liderazgo",
@@ -39,26 +55,32 @@ export default async function CapacitacionPage({
 
   const supabase = await createClient();
 
-  const [{ data: employees }, { data: courses }, { data: enrollments }] = await Promise.all([
-    supabase
-      .from("employees")
-      .select("id, full_name")
-      .eq("tenant_id", tenant.id)
-      .eq("status", "active")
-      .order("full_name", { ascending: true }),
-    supabase
-      .from("training_courses")
-      .select("id, name, description, category, duration_hours, counts_toward_infotep")
-      .eq("tenant_id", tenant.id)
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("training_enrollments")
-      .select(
-        "id, due_date, status, completed_at, employee_id, employees(full_name), training_courses(name, category, duration_hours, counts_toward_infotep)"
-      )
-      .eq("tenant_id", tenant.id)
-      .order("created_at", { ascending: false }),
-  ]);
+  const [{ data: employees }, { data: courses }, { data: enrollments }, { data: materials }] =
+    await Promise.all([
+      supabase
+        .from("employees")
+        .select("id, full_name")
+        .eq("tenant_id", tenant.id)
+        .eq("status", "active")
+        .order("full_name", { ascending: true }),
+      supabase
+        .from("training_courses")
+        .select("id, name, description, category, duration_hours, counts_toward_infotep, video_url")
+        .eq("tenant_id", tenant.id)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("training_enrollments")
+        .select(
+          "id, due_date, status, completed_at, employee_id, employees(full_name), training_courses(name, category, duration_hours, counts_toward_infotep)"
+        )
+        .eq("tenant_id", tenant.id)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("training_course_materials")
+        .select("id, course_id, title, file_name, file_size, storage_path, created_at")
+        .eq("tenant_id", tenant.id)
+        .order("created_at", { ascending: true }),
+    ]);
 
   const infotepHoursByEmployee = new Map<string, number>();
   (enrollments ?? []).forEach((e) => {
@@ -80,6 +102,13 @@ export default async function CapacitacionPage({
 
   const totalInfotepHours = infotepRows.reduce((acc, r) => acc + r.hours, 0);
 
+  const materialsByCourse = new Map<string, NonNullable<typeof materials>>();
+  (materials ?? []).forEach((m) => {
+    const list = materialsByCourse.get(m.course_id) ?? [];
+    list.push(m);
+    materialsByCourse.set(m.course_id, list);
+  });
+
   const createCourseForTenant = createCourse.bind(null, tenant.id);
   const enrollForTenant = enrollEmployee.bind(null, tenant.id);
 
@@ -87,7 +116,8 @@ export default async function CapacitacionPage({
     <div className="mx-auto max-w-4xl px-6 py-10">
       <h1 className="text-xl font-semibold text-gray-900">Capacitación — {tenant.name}</h1>
       <p className="mt-1 text-sm text-gray-500">
-        Catálogo de cursos, inscripción de empleados y horas INFOTEP acumuladas.
+        Catálogo de cursos, contenido propio (video y material adjunto), inscripción de empleados
+        y horas INFOTEP acumuladas.
       </p>
 
       {error && (
@@ -139,6 +169,15 @@ export default async function CapacitacionPage({
             <input name="counts_toward_infotep" type="checkbox" defaultChecked />
             Cuenta para INFOTEP
           </label>
+          <div className="min-w-[200px] flex-1">
+            <label className="block text-xs text-gray-500">Video (opcional)</label>
+            <input
+              name="video_url"
+              type="url"
+              placeholder="Enlace de YouTube, Vimeo, etc."
+              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+            />
+          </div>
           <input
             name="description"
             type="text"
@@ -157,28 +196,123 @@ export default async function CapacitacionPage({
           {(courses ?? []).length === 0 && (
             <p className="py-3 text-sm text-gray-500">Aún no hay cursos en el catálogo.</p>
           )}
-          {(courses ?? []).map((c) => (
-            <div key={c.id} className="flex items-center justify-between gap-3 py-3 text-sm">
-              <div>
-                <p className="font-medium text-gray-900">
-                  {c.name}
-                  {c.category && (
-                    <span className="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-                      {c.category}
-                    </span>
+          {(courses ?? []).map((c) => {
+            const updateVideo = updateCourseVideo.bind(null, c.id);
+            const uploadMaterial = uploadCourseMaterial.bind(null, tenant.id, c.id);
+            const embedUrl = c.video_url ? getVideoEmbedUrl(c.video_url) : null;
+            const courseMaterials = materialsByCourse.get(c.id) ?? [];
+            return (
+              <div key={c.id} className="py-4 text-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="font-medium text-gray-900">
+                      {c.name}
+                      {c.category && (
+                        <span className="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+                          {c.category}
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {c.duration_hours} hora(s)
+                      {c.counts_toward_infotep ? " · cuenta para INFOTEP" : ""}
+                      {c.description ? ` · ${c.description}` : ""}
+                    </p>
+                  </div>
+                  <form action={deleteCourse.bind(null, c.id)}>
+                    <button className="shrink-0 text-xs text-red-600 hover:underline">Eliminar</button>
+                  </form>
+                </div>
+
+                <div className="mt-3 rounded-lg bg-gray-50 p-3">
+                  <p className="text-xs font-medium uppercase text-gray-500">Video</p>
+                  {embedUrl ? (
+                    <div className="mt-2 aspect-video max-w-md overflow-hidden rounded-md">
+                      <iframe
+                        src={embedUrl}
+                        className="h-full w-full"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                      />
+                    </div>
+                  ) : c.video_url ? (
+                    <a
+                      href={c.video_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-1 inline-block text-xs text-gray-700 hover:underline"
+                    >
+                      Ver video ↗
+                    </a>
+                  ) : (
+                    <p className="mt-1 text-xs text-gray-400">Sin video asignado.</p>
                   )}
-                </p>
-                <p className="text-xs text-gray-500">
-                  {c.duration_hours} hora(s)
-                  {c.counts_toward_infotep ? " · cuenta para INFOTEP" : ""}
-                  {c.description ? ` · ${c.description}` : ""}
-                </p>
+                  <form action={updateVideo} className="mt-2 flex flex-wrap items-center gap-2">
+                    <input
+                      name="video_url"
+                      type="url"
+                      defaultValue={c.video_url ?? ""}
+                      placeholder="Enlace de YouTube, Vimeo, etc."
+                      className="min-w-[220px] flex-1 rounded-md border border-gray-300 px-2 py-1 text-xs"
+                    />
+                    <button
+                      type="submit"
+                      className="rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-100"
+                    >
+                      Guardar video
+                    </button>
+                  </form>
+                </div>
+
+                <div className="mt-2 rounded-lg bg-gray-50 p-3">
+                  <p className="text-xs font-medium uppercase text-gray-500">Material adjunto</p>
+                  {courseMaterials.length === 0 && (
+                    <p className="mt-1 text-xs text-gray-400">Sin material adjunto todavía.</p>
+                  )}
+                  <ul className="mt-1 space-y-1">
+                    {courseMaterials.map((m) => (
+                      <li key={m.id} className="flex items-center justify-between gap-2 text-xs">
+                        <span className="text-gray-700">
+                          {m.title}
+                          <span className="text-gray-400"> · {m.file_name} {fileSizeFmt(m.file_size)}</span>
+                        </span>
+                        <span className="flex shrink-0 items-center gap-2">
+                          <DownloadMaterialButton materialId={m.id} />
+                          <form action={deleteCourseMaterial.bind(null, m.id, m.storage_path)}>
+                            <button className="text-red-600 hover:underline">Eliminar</button>
+                          </form>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  <form
+                    action={uploadMaterial}
+                    className="mt-2 flex flex-wrap items-center gap-2"
+                  >
+                    <input
+                      name="title"
+                      type="text"
+                      placeholder="Título del material"
+                      required
+                      className="min-w-[160px] rounded-md border border-gray-300 px-2 py-1 text-xs"
+                    />
+                    <input
+                      name="file"
+                      type="file"
+                      required
+                      className="text-xs"
+                    />
+                    <button
+                      type="submit"
+                      className="rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-100"
+                    >
+                      Subir material
+                    </button>
+                  </form>
+                </div>
               </div>
-              <form action={deleteCourse.bind(null, c.id)}>
-                <button className="shrink-0 text-xs text-red-600 hover:underline">Eliminar</button>
-              </form>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 

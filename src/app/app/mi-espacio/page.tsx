@@ -13,6 +13,8 @@ import {
 } from "../asistencia/actions";
 import { updateEnrollmentStatus } from "../capacitacion/actions";
 import EnrollmentStatusSelect from "../capacitacion/EnrollmentStatusSelect";
+import DownloadMaterialButton from "../capacitacion/DownloadMaterialButton";
+import { getVideoEmbedUrl } from "@/lib/video";
 
 function expirationBadge(expiresAt: string | null) {
   if (!expiresAt) return null;
@@ -212,11 +214,27 @@ export default async function MiEspacioPage({
     supabase
       .from("training_enrollments")
       .select(
-        "id, due_date, status, completed_at, training_courses(name, category, duration_hours)"
+        "id, due_date, status, completed_at, course_id, training_courses(name, category, duration_hours, video_url)"
       )
       .eq("employee_id", employee.id)
       .order("created_at", { ascending: false }),
   ]);
+
+  const myEnrolledCourseIds = (myEnrollments ?? []).map((en) => en.course_id);
+  const { data: myEnrolledMaterials } = myEnrolledCourseIds.length
+    ? await supabase
+        .from("training_course_materials")
+        .select("id, course_id, title, file_name, file_size")
+        .in("course_id", myEnrolledCourseIds)
+        .order("created_at", { ascending: true })
+    : { data: [] as { id: string; course_id: string; title: string; file_name: string; file_size: number | null }[] };
+
+  const materialsByCourseId = new Map<string, NonNullable<typeof myEnrolledMaterials>>();
+  (myEnrolledMaterials ?? []).forEach((m) => {
+    const list = materialsByCourseId.get(m.course_id) ?? [];
+    list.push(m);
+    materialsByCourseId.set(m.course_id, list);
+  });
 
   const myBenefitIds = (myBenefits ?? []).map((b) => b.id);
   const { data: myBenefitDependents } = myBenefitIds.length
@@ -482,45 +500,84 @@ export default async function MiEspacioPage({
               name: string;
               category: string | null;
               duration_hours: number;
+              video_url: string | null;
             } | null;
             const updateStatus = updateEnrollmentStatus.bind(null, en.id, "/app/mi-espacio");
+            const embedUrl = course?.video_url ? getVideoEmbedUrl(course.video_url) : null;
+            const courseMaterials = materialsByCourseId.get(en.course_id) ?? [];
             return (
-              <div key={en.id} className="flex items-center justify-between gap-3 px-6 py-4 text-sm">
-                <div>
-                  <p className="font-medium text-gray-900">
-                    {course?.name ?? "—"}
-                    {course?.category && (
-                      <span className="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-                        {course.category}
-                      </span>
+              <div key={en.id} className="px-6 py-4 text-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="font-medium text-gray-900">
+                      {course?.name ?? "—"}
+                      {course?.category && (
+                        <span className="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+                          {course.category}
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {course?.duration_hours} hora(s)
+                      {en.due_date ? ` · Vence ${dateFmt(en.due_date)}` : ""}
+                      {en.completed_at
+                        ? ` · Certificado: completado el ${new Date(en.completed_at).toLocaleDateString("es-DO")}`
+                        : ""}
+                    </p>
+                    {en.completed_at && (
+                      <a
+                        href={`/api/capacitacion/${en.id}/certificado`}
+                        className="mt-1 inline-block text-xs font-medium text-gray-700 hover:underline"
+                      >
+                        Descargar certificado (PDF)
+                      </a>
                     )}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    {course?.duration_hours} hora(s)
-                    {en.due_date ? ` · Vence ${dateFmt(en.due_date)}` : ""}
-                    {en.completed_at
-                      ? ` · Certificado: completado el ${new Date(en.completed_at).toLocaleDateString("es-DO")}`
-                      : ""}
-                  </p>
-                  {en.completed_at && (
-                    <a
-                      href={`/api/capacitacion/${en.id}/certificado`}
-                      className="mt-1 inline-block text-xs font-medium text-gray-700 hover:underline"
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span
+                      className={`rounded-full px-3 py-1 text-xs font-medium ${
+                        trainingStatusClass[en.status] ?? "bg-gray-100 text-gray-600"
+                      }`}
                     >
-                      Descargar certificado (PDF)
-                    </a>
-                  )}
+                      {trainingStatusLabel[en.status] ?? en.status}
+                    </span>
+                    <EnrollmentStatusSelect action={updateStatus} defaultValue={en.status} />
+                  </div>
                 </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <span
-                    className={`rounded-full px-3 py-1 text-xs font-medium ${
-                      trainingStatusClass[en.status] ?? "bg-gray-100 text-gray-600"
-                    }`}
+
+                {embedUrl && (
+                  <div className="mt-3 aspect-video max-w-sm overflow-hidden rounded-md">
+                    <iframe
+                      src={embedUrl}
+                      className="h-full w-full"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                    />
+                  </div>
+                )}
+                {!embedUrl && course?.video_url && (
+                  <a
+                    href={course.video_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-2 inline-block text-xs text-gray-700 hover:underline"
                   >
-                    {trainingStatusLabel[en.status] ?? en.status}
-                  </span>
-                  <EnrollmentStatusSelect action={updateStatus} defaultValue={en.status} />
-                </div>
+                    Ver video ↗
+                  </a>
+                )}
+
+                {courseMaterials.length > 0 && (
+                  <div className="mt-2">
+                    <p className="text-xs font-medium uppercase text-gray-500">Material del curso</p>
+                    <ul className="mt-1 space-y-1">
+                      {courseMaterials.map((m) => (
+                        <li key={m.id} className="text-xs text-gray-700">
+                          {m.title} <DownloadMaterialButton materialId={m.id} label="Descargar" />
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             );
           })}
