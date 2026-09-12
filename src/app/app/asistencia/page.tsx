@@ -1,9 +1,24 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentTenant, isManagerRole } from "@/lib/supabase/tenant";
-import { setEmployeeShift, deleteTimeClockEntry } from "./actions";
+import {
+  setEmployeeShiftDay,
+  deleteEmployeeShiftDay,
+  deleteTimeClockEntry,
+} from "./actions";
+import ViewPhotoLink from "./ViewPhotoLink";
 
 const timeFmt = (t: string) => t.slice(0, 5);
+
+const DAY_LABELS = [
+  "Domingo",
+  "Lunes",
+  "Martes",
+  "Miércoles",
+  "Jueves",
+  "Viernes",
+  "Sábado",
+];
 
 const dateTimeFmt = (d: string) =>
   new Date(d).toLocaleString("es-DO", {
@@ -21,6 +36,11 @@ function formatDuration(clockIn: string, clockOut: string | null) {
   return `${hours}h ${minutes}m`;
 }
 
+function mapsLink(lat: number | null, lng: number | null) {
+  if (lat === null || lng === null) return null;
+  return `https://maps.google.com/?q=${lat},${lng}`;
+}
+
 export default async function AsistenciaPage({
   searchParams,
 }: {
@@ -36,7 +56,7 @@ export default async function AsistenciaPage({
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-  const [{ data: employees }, { data: shifts }, { data: entries }] = await Promise.all([
+  const [{ data: employees }, { data: schedules }, { data: entries }] = await Promise.all([
     supabase
       .from("employees")
       .select("id, full_name")
@@ -44,19 +64,35 @@ export default async function AsistenciaPage({
       .eq("status", "active")
       .order("full_name", { ascending: true }),
     supabase
-      .from("employee_shifts")
-      .select("employee_id, start_time, end_time, employees(full_name)")
-      .eq("tenant_id", tenant.id),
+      .from("employee_shift_schedules")
+      .select("employee_id, day_of_week, start_time, end_time, crosses_midnight, employees(full_name)")
+      .eq("tenant_id", tenant.id)
+      .order("day_of_week", { ascending: true }),
     supabase
       .from("time_clock_entries")
-      .select("id, clock_in, clock_out, is_late, employees(full_name)")
+      .select(
+        "id, clock_in, clock_out, is_late, clock_in_lat, clock_in_lng, clock_in_photo_path, clock_out_lat, clock_out_lng, clock_out_photo_path, employees(full_name)"
+      )
       .eq("tenant_id", tenant.id)
       .gte("clock_in", thirtyDaysAgo.toISOString())
       .order("clock_in", { ascending: false })
       .limit(100),
   ]);
 
-  const setShiftForTenant = setEmployeeShift.bind(null, tenant.id);
+  const setShiftDayForTenant = setEmployeeShiftDay.bind(null, tenant.id);
+
+  // Agrupa los horarios por empleado para mostrar los 7 dias juntos.
+  const schedulesByEmployee = new Map<
+    string,
+    { name: string; days: NonNullable<typeof schedules>[number][] }
+  >();
+  for (const s of schedules ?? []) {
+    const name =
+      (s.employees as unknown as { full_name: string } | null)?.full_name ?? "—";
+    const bucket = schedulesByEmployee.get(s.employee_id) ?? { name, days: [] };
+    bucket.days.push(s);
+    schedulesByEmployee.set(s.employee_id, bucket);
+  }
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-10">
@@ -64,7 +100,9 @@ export default async function AsistenciaPage({
         Asistencia y tiempo — {tenant.name}
       </h1>
       <p className="mt-1 text-sm text-gray-500">
-        Horarios por empleado y registro de marcaje web de los últimos 30 días.
+        Horario semanal por empleado (turnos rotativos/nocturnos) y registro
+        de marcaje web de los últimos 30 días, con geolocalización de
+        referencia y foto obligatoria en cada marcaje.
       </p>
 
       {error && (
@@ -74,15 +112,15 @@ export default async function AsistenciaPage({
       )}
 
       <div className="mt-6 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-        <h2 className="text-sm font-medium text-gray-700">Horario por empleado</h2>
-        <form action={setShiftForTenant} className="mt-3 flex flex-wrap items-end gap-3">
+        <h2 className="text-sm font-medium text-gray-700">Horario por empleado y día</h2>
+        <form action={setShiftDayForTenant} className="mt-3 flex flex-wrap items-end gap-3">
           <div>
             <label className="block text-xs text-gray-500">Empleado</label>
             <select
               name="employee_id"
               required
               defaultValue=""
-              className="mt-1 min-w-[180px] rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
+              className="mt-1 min-w-[160px] rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
             >
               <option value="" disabled>
                 Seleccionar...
@@ -90,6 +128,24 @@ export default async function AsistenciaPage({
               {(employees ?? []).map((e) => (
                 <option key={e.id} value={e.id}>
                   {e.full_name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500">Día</label>
+            <select
+              name="day_of_week"
+              required
+              defaultValue=""
+              className="mt-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
+            >
+              <option value="" disabled>
+                Seleccionar...
+              </option>
+              {DAY_LABELS.map((label, i) => (
+                <option key={i} value={i}>
+                  {label}
                 </option>
               ))}
             </select>
@@ -112,33 +168,50 @@ export default async function AsistenciaPage({
               className="mt-1 rounded-md border border-gray-300 px-3 py-2 text-sm"
             />
           </div>
+          <label className="flex items-center gap-1.5 pb-2 text-xs text-gray-600">
+            <input type="checkbox" name="crosses_midnight" className="rounded border-gray-300" />
+            Turno nocturno (cruza medianoche)
+          </label>
           <button
             type="submit"
             className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
           >
-            Guardar horario
+            Guardar día
           </button>
         </form>
         <p className="mt-2 text-xs text-gray-400">
-          Horario fijo de lunes a viernes (v1 no contempla turnos rotativos ni
-          nocturnos que crucen medianoche). Se usa solo para marcar tardanzas
-          en el marcaje, con 10 minutos de tolerancia.
+          Un horario por empleado y día de la semana — así se pueden armar
+          turnos rotativos o nocturnos (ej. 22:00–06:00) en vez de un único
+          horario fijo de lunes a viernes. Un día sin horario asignado nunca
+          marca tardanza ese día. Se usa solo para marcar tardanzas en el
+          marcaje, con 10 minutos de tolerancia sobre la hora de inicio.
         </p>
 
-        {(shifts ?? []).length > 0 && (
+        {schedulesByEmployee.size > 0 && (
           <div className="mt-4 divide-y divide-gray-100 border-t border-gray-100">
-            {(shifts ?? []).map((s) => {
-              const name =
-                (s.employees as unknown as { full_name: string } | null)?.full_name ?? "—";
-              return (
-                <div key={s.employee_id} className="flex items-center justify-between py-2 text-sm">
-                  <span className="text-gray-900">{name}</span>
-                  <span className="text-gray-500">
-                    {timeFmt(s.start_time)} – {timeFmt(s.end_time)}
-                  </span>
+            {Array.from(schedulesByEmployee.entries()).map(([employeeId, bucket]) => (
+              <div key={employeeId} className="py-2">
+                <p className="text-sm font-medium text-gray-900">{bucket.name}</p>
+                <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+                  {bucket.days.map((d) => (
+                    <span
+                      key={d.day_of_week}
+                      className="flex items-center gap-1.5 text-xs text-gray-500"
+                    >
+                      {DAY_LABELS[d.day_of_week]}: {timeFmt(d.start_time)}–{timeFmt(d.end_time)}
+                      {d.crosses_midnight && (
+                        <span className="rounded-full bg-indigo-100 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700">
+                          nocturno
+                        </span>
+                      )}
+                      <form action={deleteEmployeeShiftDay.bind(null, employeeId, d.day_of_week)}>
+                        <button className="text-red-500 hover:underline">Quitar</button>
+                      </form>
+                    </span>
+                  ))}
                 </div>
-              );
-            })}
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -150,20 +223,21 @@ export default async function AsistenciaPage({
           </h2>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[600px] text-sm">
+          <table className="w-full min-w-[760px] text-sm">
             <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500">
               <tr>
                 <th className="px-4 py-2">Empleado</th>
                 <th className="px-4 py-2">Entrada</th>
                 <th className="px-4 py-2">Salida</th>
                 <th className="px-4 py-2">Duración</th>
+                <th className="px-4 py-2">Evidencia</th>
                 <th className="px-4 py-2"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {(entries ?? []).length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-6 text-center text-gray-500">
+                  <td colSpan={6} className="px-4 py-6 text-center text-gray-500">
                     Aún no hay marcajes registrados.
                   </td>
                 </tr>
@@ -171,6 +245,8 @@ export default async function AsistenciaPage({
               {(entries ?? []).map((e) => {
                 const name =
                   (e.employees as unknown as { full_name: string } | null)?.full_name ?? "—";
+                const inMapsLink = mapsLink(e.clock_in_lat, e.clock_in_lng);
+                const outMapsLink = mapsLink(e.clock_out_lat, e.clock_out_lng);
                 return (
                   <tr key={e.id}>
                     <td className="px-4 py-2 text-gray-900">{name}</td>
@@ -187,6 +263,46 @@ export default async function AsistenciaPage({
                     </td>
                     <td className="px-4 py-2 text-gray-600">
                       {formatDuration(e.clock_in, e.clock_out)}
+                    </td>
+                    <td className="px-4 py-2">
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-2">
+                          {e.clock_in_photo_path ? (
+                            <ViewPhotoLink entryId={e.id} which="in" label="Foto entrada" />
+                          ) : (
+                            <span className="text-xs text-gray-300">Sin foto</span>
+                          )}
+                          {inMapsLink && (
+                            <a
+                              href={inMapsLink}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-gray-500 underline"
+                            >
+                              Ubicación
+                            </a>
+                          )}
+                        </div>
+                        {e.clock_out && (
+                          <div className="flex items-center gap-2">
+                            {e.clock_out_photo_path ? (
+                              <ViewPhotoLink entryId={e.id} which="out" label="Foto salida" />
+                            ) : (
+                              <span className="text-xs text-gray-300">Sin foto</span>
+                            )}
+                            {outMapsLink && (
+                              <a
+                                href={outMapsLink}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-gray-500 underline"
+                              >
+                                Ubicación
+                              </a>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-2 text-right">
                       <form action={deleteTimeClockEntry.bind(null, e.id)}>

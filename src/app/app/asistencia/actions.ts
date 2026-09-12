@@ -1,27 +1,34 @@
 "use server";
 
+import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
-export async function setEmployeeShift(tenantId: string, formData: FormData) {
+export async function setEmployeeShiftDay(tenantId: string, formData: FormData) {
   const supabase = await createClient();
 
   const employee_id = (formData.get("employee_id") as string) || "";
+  const day_of_week = (formData.get("day_of_week") as string) ?? "";
   const start_time = (formData.get("start_time") as string) || "";
   const end_time = (formData.get("end_time") as string) || "";
+  const crosses_midnight = formData.get("crosses_midnight") === "on";
 
-  if (!employee_id || !start_time || !end_time) {
+  if (!employee_id || day_of_week === "" || !start_time || !end_time) {
     redirect(
       "/app/asistencia?error=" +
-        encodeURIComponent("Empleado, hora de inicio y hora de fin son obligatorios.")
+        encodeURIComponent(
+          "Empleado, día, hora de inicio y hora de fin son obligatorios."
+        )
     );
   }
 
-  const { error } = await supabase.rpc("upsert_employee_shift", {
+  const { error } = await supabase.rpc("upsert_employee_shift_day", {
     p_employee_id: employee_id,
+    p_day_of_week: Number(day_of_week),
     p_start_time: start_time,
     p_end_time: end_time,
+    p_crosses_midnight: crosses_midnight,
   });
 
   if (error) {
@@ -29,6 +36,24 @@ export async function setEmployeeShift(tenantId: string, formData: FormData) {
       "/app/asistencia?error=" +
         encodeURIComponent("No se pudo guardar el horario: " + error.message)
     );
+  }
+
+  revalidatePath("/app/asistencia");
+}
+
+export async function deleteEmployeeShiftDay(
+  employeeId: string,
+  dayOfWeek: number
+) {
+  const supabase = await createClient();
+
+  const { error } = await supabase.rpc("delete_employee_shift_day", {
+    p_employee_id: employeeId,
+    p_day_of_week: dayOfWeek,
+  });
+
+  if (error) {
+    console.error("deleteEmployeeShiftDay error:", error.message);
   }
 
   revalidatePath("/app/asistencia");
@@ -46,28 +71,119 @@ export async function deleteTimeClockEntry(entryId: string) {
   revalidatePath("/app/asistencia");
 }
 
-export async function clockInAction(tenantId: string, revalidateTo: string) {
+// Sube la foto (obligatoria) al bucket privado time-clock-photos y solo
+// entonces llama al RPC, que rechaza el marcaje si no recibe una ruta de
+// foto. La geolocalizacion es de referencia -- si el navegador no la
+// entrega (denegada, sin soporte, timeout) los campos llegan vacios y el
+// marcaje se registra igual, nunca se bloquea por eso.
+export async function clockInAction(
+  tenantId: string,
+  employeeId: string,
+  revalidateTo: string,
+  formData: FormData
+) {
   const supabase = await createClient();
 
-  const { error } = await supabase.rpc("clock_in", { p_tenant_id: tenantId });
+  const file = formData.get("photo") as File | null;
+  if (!file || file.size === 0) {
+    redirect(
+      `${revalidateTo}?error=` +
+        encodeURIComponent("Debes tomar una foto para marcar la entrada.")
+    );
+  }
+
+  const latRaw = (formData.get("lat") as string) || "";
+  const lngRaw = (formData.get("lng") as string) || "";
+  const lat = latRaw ? Number(latRaw) : null;
+  const lng = lngRaw ? Number(lngRaw) : null;
+
+  const safeName = (file.name || "foto.jpg").replace(/[^a-zA-Z0-9._-]/g, "_");
+  const storagePath = `${tenantId}/${employeeId}/${randomUUID()}-in-${safeName}`;
+  const arrayBuffer = await file.arrayBuffer();
+
+  const { error: uploadError } = await supabase.storage
+    .from("time-clock-photos")
+    .upload(storagePath, arrayBuffer, {
+      contentType: file.type || "image/jpeg",
+      upsert: false,
+    });
+
+  if (uploadError) {
+    redirect(
+      `${revalidateTo}?error=` +
+        encodeURIComponent("No se pudo subir la foto: " + uploadError.message)
+    );
+  }
+
+  const { error } = await supabase.rpc("clock_in", {
+    p_tenant_id: tenantId,
+    p_lat: lat,
+    p_lng: lng,
+    p_photo_path: storagePath,
+  });
 
   if (error) {
+    await supabase.storage.from("time-clock-photos").remove([storagePath]);
     redirect(
-      `${revalidateTo}?error=` + encodeURIComponent("No se pudo marcar la entrada: " + error.message)
+      `${revalidateTo}?error=` +
+        encodeURIComponent("No se pudo marcar la entrada: " + error.message)
     );
   }
 
   revalidatePath(revalidateTo);
 }
 
-export async function clockOutAction(tenantId: string, revalidateTo: string) {
+export async function clockOutAction(
+  tenantId: string,
+  employeeId: string,
+  revalidateTo: string,
+  formData: FormData
+) {
   const supabase = await createClient();
 
-  const { error } = await supabase.rpc("clock_out", { p_tenant_id: tenantId });
+  const file = formData.get("photo") as File | null;
+  if (!file || file.size === 0) {
+    redirect(
+      `${revalidateTo}?error=` +
+        encodeURIComponent("Debes tomar una foto para marcar la salida.")
+    );
+  }
+
+  const latRaw = (formData.get("lat") as string) || "";
+  const lngRaw = (formData.get("lng") as string) || "";
+  const lat = latRaw ? Number(latRaw) : null;
+  const lng = lngRaw ? Number(lngRaw) : null;
+
+  const safeName = (file.name || "foto.jpg").replace(/[^a-zA-Z0-9._-]/g, "_");
+  const storagePath = `${tenantId}/${employeeId}/${randomUUID()}-out-${safeName}`;
+  const arrayBuffer = await file.arrayBuffer();
+
+  const { error: uploadError } = await supabase.storage
+    .from("time-clock-photos")
+    .upload(storagePath, arrayBuffer, {
+      contentType: file.type || "image/jpeg",
+      upsert: false,
+    });
+
+  if (uploadError) {
+    redirect(
+      `${revalidateTo}?error=` +
+        encodeURIComponent("No se pudo subir la foto: " + uploadError.message)
+    );
+  }
+
+  const { error } = await supabase.rpc("clock_out", {
+    p_tenant_id: tenantId,
+    p_lat: lat,
+    p_lng: lng,
+    p_photo_path: storagePath,
+  });
 
   if (error) {
+    await supabase.storage.from("time-clock-photos").remove([storagePath]);
     redirect(
-      `${revalidateTo}?error=` + encodeURIComponent("No se pudo marcar la salida: " + error.message)
+      `${revalidateTo}?error=` +
+        encodeURIComponent("No se pudo marcar la salida: " + error.message)
     );
   }
 

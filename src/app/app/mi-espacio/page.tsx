@@ -15,6 +15,7 @@ import { updateEnrollmentStatus } from "../capacitacion/actions";
 import EnrollmentStatusSelect from "../capacitacion/EnrollmentStatusSelect";
 import DownloadMaterialButton from "../capacitacion/DownloadMaterialButton";
 import { getVideoEmbedUrl } from "@/lib/video";
+import ClockActionForm from "./ClockActionForm";
 
 function expirationBadge(expiresAt: string | null) {
   if (!expiresAt) return null;
@@ -305,17 +306,15 @@ export default async function MiEspacioPage({
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-medium text-gray-700">Marcaje</h2>
           {currentlyClockedIn ? (
-            <form action={clockOutAction.bind(null, tenant.id, "/app/mi-espacio")}>
-              <button className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800">
-                Marcar salida
-              </button>
-            </form>
+            <ClockActionForm
+              action={clockOutAction.bind(null, tenant.id, employee.id, "/app/mi-espacio")}
+              label="Marcar salida"
+            />
           ) : (
-            <form action={clockInAction.bind(null, tenant.id, "/app/mi-espacio")}>
-              <button className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800">
-                Marcar entrada
-              </button>
-            </form>
+            <ClockActionForm
+              action={clockInAction.bind(null, tenant.id, employee.id, "/app/mi-espacio")}
+              label="Marcar entrada"
+            />
           )}
         </div>
         <div className="mt-3 divide-y divide-gray-100">
