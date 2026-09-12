@@ -15,6 +15,8 @@ import { requestBenefit, cancelBenefitRequest } from "../beneficios/actions";
 import { updateEnrollmentStatus } from "../capacitacion/actions";
 import EnrollmentStatusSelect from "../capacitacion/EnrollmentStatusSelect";
 import DownloadMaterialButton from "../capacitacion/DownloadMaterialButton";
+import { updateDevelopmentGoalStatus } from "../desarrollo/actions";
+import GoalStatusSelect from "../desarrollo/GoalStatusSelect";
 import { getVideoEmbedUrl } from "@/lib/video";
 import ClockActionForm from "./ClockActionForm";
 
@@ -132,6 +134,23 @@ const trainingStatusClass: Record<string, string> = {
   completada: "bg-emerald-100 text-emerald-800",
 };
 
+const planStatusLabel: Record<string, string> = {
+  en_progreso: "En progreso",
+  completado: "Completado",
+};
+
+const goalStatusLabel: Record<string, string> = {
+  pendiente: "Pendiente",
+  en_progreso: "En progreso",
+  completado: "Completado",
+};
+
+const goalStatusClass: Record<string, string> = {
+  pendiente: "bg-gray-100 text-gray-600",
+  en_progreso: "bg-gray-900 text-white",
+  completado: "bg-emerald-100 text-emerald-800",
+};
+
 export default async function MiEspacioPage({
   searchParams,
 }: {
@@ -194,6 +213,7 @@ export default async function MiEspacioPage({
     { data: myEnrollments },
     { data: benefitTypes },
     { data: myBenefitRequests },
+    { data: myDevelopmentPlans },
   ] = await Promise.all([
     supabase
       .from("evaluations")
@@ -250,6 +270,13 @@ export default async function MiEspacioPage({
     supabase
       .from("benefit_requests")
       .select("id, status, note, resolution_note, created_at, benefit_types(name)")
+      .eq("employee_id", employee.id)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("development_plans")
+      .select(
+        "id, title, notes, status, created_at, development_plan_goals(id, description, target_date, status, order_index)"
+      )
       .eq("employee_id", employee.id)
       .order("created_at", { ascending: false }),
   ]);
@@ -947,6 +974,99 @@ export default async function MiEspacioPage({
                   </span>
                 )}
               </Link>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="mt-6 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div className="border-b border-gray-100 px-6 py-4">
+          <h2 className="text-sm font-medium text-gray-700">Mi plan de desarrollo</h2>
+        </div>
+        <div className="divide-y divide-gray-100">
+          {(myDevelopmentPlans ?? []).length === 0 && (
+            <p className="px-6 py-6 text-center text-sm text-gray-500">
+              Aún no tienes un plan de desarrollo individual asignado.
+            </p>
+          )}
+          {(myDevelopmentPlans ?? []).map((plan) => {
+            const goals = (
+              (plan.development_plan_goals ?? []) as unknown as {
+                id: string;
+                description: string;
+                target_date: string | null;
+                status: string;
+                order_index: number;
+              }[]
+            )
+              .slice()
+              .sort((a, b) => {
+                if (a.target_date && b.target_date) return a.target_date.localeCompare(b.target_date);
+                if (a.target_date) return -1;
+                if (b.target_date) return 1;
+                return a.order_index - b.order_index;
+              });
+            return (
+              <div key={plan.id} className="px-6 py-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">{plan.title}</p>
+                    {plan.notes && <p className="text-xs text-gray-500">{plan.notes}</p>}
+                  </div>
+                  <span
+                    className={`rounded-full px-3 py-1 text-xs font-medium ${
+                      plan.status === "completado"
+                        ? "bg-emerald-100 text-emerald-800"
+                        : "bg-gray-900 text-white"
+                    }`}
+                  >
+                    {planStatusLabel[plan.status] ?? plan.status}
+                  </span>
+                </div>
+                <div className="mt-3 space-y-2">
+                  {goals.length === 0 && (
+                    <p className="text-xs text-gray-400">Este plan todavía no tiene metas.</p>
+                  )}
+                  {goals.map((g) => {
+                    const updateStatus = updateDevelopmentGoalStatus.bind(
+                      null,
+                      g.id,
+                      revalidateTo
+                    );
+                    return (
+                      <div
+                        key={g.id}
+                        className="flex items-start justify-between gap-3 rounded-md border border-gray-100 bg-gray-50 p-3"
+                      >
+                        <div className="flex-1">
+                          <p
+                            className={`text-sm ${
+                              g.status === "completado"
+                                ? "text-gray-400 line-through"
+                                : "text-gray-900"
+                            }`}
+                          >
+                            {g.description}
+                          </p>
+                          <p className="mt-0.5 text-xs text-gray-400">
+                            {g.target_date ? `Vence ${dateFmt(g.target_date)}` : "Sin fecha objetivo"}
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <span
+                            className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                              goalStatusClass[g.status] ?? "bg-gray-100 text-gray-600"
+                            }`}
+                          >
+                            {goalStatusLabel[g.status] ?? g.status}
+                          </span>
+                          <GoalStatusSelect action={updateStatus} defaultValue={g.status} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             );
           })}
         </div>

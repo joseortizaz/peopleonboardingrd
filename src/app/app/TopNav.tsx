@@ -104,6 +104,7 @@ const GROUPS: NavGroupDef[] = [
     links: [
       { href: "/app/evaluaciones", label: "Evaluaciones" },
       { href: "/app/capacitacion", label: "Capacitación" },
+      { href: "/app/desarrollo", label: "Planes de desarrollo" },
     ],
   },
   {

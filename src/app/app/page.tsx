@@ -278,6 +278,16 @@ export default async function AppHomePage() {
         </Link>
 
         <Link
+          href="/app/desarrollo"
+          className={`${CARD_BASE} ${CARD_ACCENT.rose}`}
+        >
+          <h2 className="font-medium text-gray-900">Planes de desarrollo</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            Planes de desarrollo individual (PDI) con metas y seguimiento de progreso.
+          </p>
+        </Link>
+
+        <Link
           href="/app/comunicacion"
           className={`${CARD_BASE} ${CARD_ACCENT.sky}`}
         >
