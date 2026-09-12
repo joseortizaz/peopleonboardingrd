@@ -8,7 +8,10 @@ import {
   assignBenefit,
   endAssignment,
   deleteAssignment,
+  decideBenefitRequest,
+  deleteBenefitRequest,
 } from "./actions";
+import ExportBenefitReportButton from "./ExportBenefitReportButton";
 
 const categoryLabel: Record<string, string> = {
   ars: "ARS",
@@ -24,6 +27,18 @@ const currency = new Intl.NumberFormat("es-DO", {
 });
 
 const dateFmt = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("es-DO");
+
+const requestStatusLabel: Record<string, string> = {
+  pendiente: "Pendiente",
+  aprobada: "Aprobada",
+  rechazada: "Rechazada",
+};
+
+const requestStatusClass: Record<string, string> = {
+  pendiente: "bg-gray-900 text-white",
+  aprobada: "bg-emerald-100 text-emerald-800",
+  rechazada: "bg-red-100 text-red-700",
+};
 
 export default async function BeneficiosPage({
   searchParams,
@@ -44,6 +59,7 @@ export default async function BeneficiosPage({
     { data: assignments },
     { data: activeBenefitsForCost },
     { data: employeesForCost },
+    { data: benefitRequests },
   ] = await Promise.all([
     supabase
       .from("employees")
@@ -74,7 +90,17 @@ export default async function BeneficiosPage({
       .eq("tenant_id", tenant.id)
       .eq("status", "active")
       .order("full_name", { ascending: true }),
+    supabase
+      .from("benefit_requests")
+      .select(
+        "id, status, note, resolution_note, created_at, employees(full_name), benefit_types(name)"
+      )
+      .eq("tenant_id", tenant.id)
+      .order("created_at", { ascending: false }),
   ]);
+
+  const pendingBenefitRequests = (benefitRequests ?? []).filter((r) => r.status === "pendiente");
+  const decidedBenefitRequests = (benefitRequests ?? []).filter((r) => r.status !== "pendiente");
 
   const benefitsCostByEmployee = new Map<string, number>();
   (activeBenefitsForCost ?? []).forEach((b) => {
@@ -121,6 +147,11 @@ export default async function BeneficiosPage({
 
       <div className="mt-6 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
         <h2 className="text-sm font-medium text-gray-700">Catálogo de beneficios</h2>
+        <p className="mt-1 text-xs text-gray-400">
+          &quot;Exportar reporte&quot; genera un CSV con los empleados activos en ese beneficio y
+          sus dependientes, listo para enviar manualmente al corredor o a la aseguradora (por
+          ejemplo, tu proveedor de ARS) — no requiere que el proveedor tenga acceso a la app.
+        </p>
         <form action={createTypeForTenant} className="mt-3 flex flex-wrap items-end gap-3">
           <div>
             <label className="block text-xs text-gray-500">Nombre</label>
@@ -210,9 +241,17 @@ export default async function BeneficiosPage({
                   {b.notes ? ` · ${b.notes}` : ""}
                 </p>
               </div>
-              <form action={deleteBenefitType.bind(null, b.id)}>
-                <button className="shrink-0 text-xs text-red-600 hover:underline">Eliminar</button>
-              </form>
+              <div className="flex shrink-0 items-center gap-3">
+                <ExportBenefitReportButton
+                  benefitTypeId={b.id}
+                  fileName={`reporte-${b.name
+                    .replace(/[^a-zA-Z0-9]+/g, "-")
+                    .toLowerCase()}-${today}.csv`}
+                />
+                <form action={deleteBenefitType.bind(null, b.id)}>
+                  <button className="text-xs text-red-600 hover:underline">Eliminar</button>
+                </form>
+              </div>
             </div>
           ))}
         </div>
@@ -287,6 +326,98 @@ export default async function BeneficiosPage({
             Crea al menos un beneficio en el catálogo antes de asignarlo.
           </p>
         )}
+      </div>
+
+      <div className="mt-6 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div className="border-b border-gray-100 px-6 py-4">
+          <h2 className="flex items-center gap-2 text-sm font-medium text-gray-700">
+            Solicitudes de beneficios
+            {pendingBenefitRequests.length > 0 && (
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                {pendingBenefitRequests.length} pendiente(s)
+              </span>
+            )}
+          </h2>
+          <p className="mt-1 text-xs text-gray-500">
+            Solicitudes de empleados para inscribirse a un beneficio del catálogo por su cuenta;
+            al aprobar se crea la asignación (sin dependientes — agrégalos después desde su
+            detalle).
+          </p>
+        </div>
+        <div className="divide-y divide-gray-100">
+          {(benefitRequests ?? []).length === 0 && (
+            <p className="px-6 py-6 text-center text-sm text-gray-500">
+              Aún no hay solicitudes de beneficios.
+            </p>
+          )}
+          {pendingBenefitRequests.map((r) => {
+            const employeeName =
+              (r.employees as unknown as { full_name: string } | null)?.full_name ?? "—";
+            const benefitName =
+              (r.benefit_types as unknown as { name: string } | null)?.name ?? "—";
+            return (
+              <div key={r.id} className="flex items-start justify-between gap-3 px-6 py-4 text-sm">
+                <div>
+                  <p className="font-medium text-gray-900">
+                    {employeeName} — {benefitName}
+                  </p>
+                  {r.note && <p className="text-xs text-gray-500">{r.note}</p>}
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <form action={decideBenefitRequest.bind(null, r.id, "aprobada")}>
+                    <button className="rounded-md border border-emerald-200 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50">
+                      Aprobar
+                    </button>
+                  </form>
+                  <form
+                    action={decideBenefitRequest.bind(null, r.id, "rechazada")}
+                    className="flex items-center gap-2"
+                  >
+                    <input
+                      name="notes"
+                      type="text"
+                      placeholder="Motivo (opcional)"
+                      className="rounded-md border border-gray-300 px-2 py-1 text-xs"
+                    />
+                    <button className="rounded-md border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50">
+                      Rechazar
+                    </button>
+                  </form>
+                </div>
+              </div>
+            );
+          })}
+          {decidedBenefitRequests.map((r) => {
+            const employeeName =
+              (r.employees as unknown as { full_name: string } | null)?.full_name ?? "—";
+            const benefitName =
+              (r.benefit_types as unknown as { name: string } | null)?.name ?? "—";
+            return (
+              <div key={r.id} className="flex items-start justify-between gap-3 px-6 py-4 text-sm">
+                <div>
+                  <p className="text-gray-900">
+                    {employeeName} — {benefitName}
+                  </p>
+                  {r.resolution_note && (
+                    <p className="text-xs text-gray-400">Nota: {r.resolution_note}</p>
+                  )}
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <span
+                    className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                      requestStatusClass[r.status] ?? "bg-gray-100 text-gray-600"
+                    }`}
+                  >
+                    {requestStatusLabel[r.status] ?? r.status}
+                  </span>
+                  <form action={deleteBenefitRequest.bind(null, r.id)}>
+                    <button className="text-xs text-red-600 hover:underline">Eliminar</button>
+                  </form>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       <div className="mt-6 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">

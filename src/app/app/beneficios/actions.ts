@@ -162,3 +162,85 @@ export async function deleteDependent(employeeBenefitId: string, id: string) {
   revalidatePath(revalidateTo);
   redirect(revalidateTo);
 }
+
+// ---------- Inscripción propia del empleado (autoservicio) ----------
+
+const MI_ESPACIO_PATH = "/app/mi-espacio";
+
+export async function requestBenefit(tenantId: string, formData: FormData) {
+  const supabase = await createClient();
+
+  const benefitTypeId = String(formData.get("benefit_type_id") ?? "");
+  const note = String(formData.get("note") ?? "").trim() || null;
+
+  if (!benefitTypeId) {
+    redirect(`${MI_ESPACIO_PATH}?error=${encodeURIComponent("Selecciona un beneficio")}`);
+  }
+
+  const { error } = await supabase.rpc("request_benefit", {
+    p_tenant_id: tenantId,
+    p_benefit_type_id: benefitTypeId,
+    p_note: note,
+  });
+
+  if (error) {
+    redirect(
+      `${MI_ESPACIO_PATH}?error=${encodeURIComponent(
+        "No se pudo enviar la solicitud: " + error.message
+      )}`
+    );
+  }
+
+  revalidatePath(MI_ESPACIO_PATH);
+}
+
+export async function cancelBenefitRequest(id: string) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("benefit_requests").delete().eq("id", id);
+
+  if (error) {
+    console.error("cancelBenefitRequest error:", error.message);
+  }
+
+  revalidatePath(MI_ESPACIO_PATH);
+}
+
+export async function decideBenefitRequest(
+  id: string,
+  decision: "aprobada" | "rechazada",
+  formData: FormData
+) {
+  const supabase = await createClient();
+  const notes = String(formData.get("notes") ?? "").trim() || null;
+
+  const { error } = await supabase.rpc("decide_benefit_request", {
+    p_request_id: id,
+    p_decision: decision,
+    p_resolution_note: notes,
+  });
+
+  if (error) {
+    redirect(
+      `${REVALIDATE_PATH}?error=${encodeURIComponent(
+        "No se pudo procesar la solicitud: " + error.message
+      )}`
+    );
+  }
+
+  revalidatePath(REVALIDATE_PATH);
+}
+
+export async function deleteBenefitRequest(id: string) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("benefit_requests").delete().eq("id", id);
+
+  if (error) {
+    redirect(
+      `${REVALIDATE_PATH}?error=${encodeURIComponent(
+        "No se pudo eliminar la solicitud: " + error.message
+      )}`
+    );
+  }
+
+  revalidatePath(REVALIDATE_PATH);
+}

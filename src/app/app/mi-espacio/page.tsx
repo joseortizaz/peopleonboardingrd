@@ -11,6 +11,7 @@ import {
   requestLeaveAction,
   cancelLeaveRequestAction,
 } from "../asistencia/actions";
+import { requestBenefit, cancelBenefitRequest } from "../beneficios/actions";
 import { updateEnrollmentStatus } from "../capacitacion/actions";
 import EnrollmentStatusSelect from "../capacitacion/EnrollmentStatusSelect";
 import DownloadMaterialButton from "../capacitacion/DownloadMaterialButton";
@@ -34,6 +35,26 @@ function expirationBadge(expiresAt: string | null) {
 }
 
 const dateFmt = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("es-DO");
+
+// Recordatorio de fecha límite de un curso: mismo patrón que
+// expirationBadge() arriba, pero con ventana de 7 días (en vez de 30) y
+// solo mientras la inscripción no esté completada -- una vez completada,
+// la fecha límite ya no importa.
+function dueDateBadge(dueDate: string | null, status: string) {
+  if (!dueDate || status === "completada") return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const due = new Date(dueDate + "T00:00:00");
+  const diffDays = Math.round((due.getTime() - today.getTime()) / 86400000);
+
+  if (diffDays < 0) {
+    return { label: "Vencido", className: "bg-red-100 text-red-700" };
+  }
+  if (diffDays <= 7) {
+    return { label: "Por vencer", className: "bg-amber-100 text-amber-700" };
+  }
+  return null;
+}
 
 const statusLabel: Record<string, string> = {
   active: "Activo",
@@ -171,6 +192,8 @@ export default async function MiEspacioPage({
     { data: myLeaveRequests },
     { data: myBenefits },
     { data: myEnrollments },
+    { data: benefitTypes },
+    { data: myBenefitRequests },
   ] = await Promise.all([
     supabase
       .from("evaluations")
@@ -217,6 +240,16 @@ export default async function MiEspacioPage({
       .select(
         "id, due_date, status, completed_at, course_id, training_courses(name, category, duration_hours, video_url)"
       )
+      .eq("employee_id", employee.id)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("benefit_types")
+      .select("id, name, category, provider")
+      .eq("tenant_id", tenant.id)
+      .order("name", { ascending: true }),
+    supabase
+      .from("benefit_requests")
+      .select("id, status, note, resolution_note, created_at, benefit_types(name)")
       .eq("employee_id", employee.id)
       .order("created_at", { ascending: false }),
   ]);
@@ -484,9 +517,103 @@ export default async function MiEspacioPage({
         </div>
       </div>
 
+      <div className="mt-6 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+        <h2 className="text-sm font-medium text-gray-700">Solicitar un beneficio</h2>
+        <p className="mt-1 text-xs text-gray-500">
+          Elige un beneficio del catálogo de tu empresa; Recursos Humanos revisa tu solicitud y la
+          aprueba o la rechaza.
+        </p>
+        <form
+          action={requestBenefit.bind(null, tenant.id)}
+          className="mt-3 flex flex-wrap items-end gap-3"
+        >
+          <div>
+            <label className="block text-xs text-gray-500">Beneficio</label>
+            <select
+              name="benefit_type_id"
+              required
+              defaultValue=""
+              className="mt-1 min-w-[200px] rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
+            >
+              <option value="" disabled>
+                Seleccionar...
+              </option>
+              {(benefitTypes ?? []).map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <input
+            name="note"
+            type="text"
+            placeholder="Nota (opcional)"
+            className="min-w-[200px] flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm"
+          />
+          <button
+            type="submit"
+            className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
+          >
+            Solicitar
+          </button>
+        </form>
+        {(benefitTypes ?? []).length === 0 && (
+          <p className="mt-2 text-xs text-amber-600">
+            Tu empresa todavía no tiene beneficios en el catálogo.
+          </p>
+        )}
+
+        <div className="mt-4 divide-y divide-gray-100 border-t border-gray-100">
+          {(myBenefitRequests ?? []).length === 0 && (
+            <p className="py-3 text-sm text-gray-500">Aún no tienes solicitudes de beneficios.</p>
+          )}
+          {(myBenefitRequests ?? []).map((r) => {
+            const benefit = r.benefit_types as unknown as { name: string } | null;
+            return (
+              <div key={r.id} className="flex items-start justify-between gap-3 py-3">
+                <div>
+                  <p className="text-sm text-gray-900">{benefit?.name ?? "—"}</p>
+                  {r.note && <p className="text-xs text-gray-500">{r.note}</p>}
+                  {r.resolution_note && (
+                    <p className="text-xs text-gray-400">Nota de gestión: {r.resolution_note}</p>
+                  )}
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <span
+                    className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                      leaveStatusClass[r.status] ?? "bg-gray-100 text-gray-600"
+                    }`}
+                  >
+                    {leaveStatusLabel[r.status] ?? r.status}
+                  </span>
+                  {r.status === "pendiente" && (
+                    <form action={cancelBenefitRequest.bind(null, r.id)}>
+                      <button className="text-xs text-red-600 hover:underline">Cancelar</button>
+                    </form>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       <div className="mt-6 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         <div className="border-b border-gray-100 px-6 py-4">
-          <h2 className="text-sm font-medium text-gray-700">Mis cursos</h2>
+          <h2 className="flex items-center gap-2 text-sm font-medium text-gray-700">
+            Mis cursos
+            {(() => {
+              const dueSoon = (myEnrollments ?? []).filter(
+                (en) => dueDateBadge(en.due_date, en.status) !== null
+              ).length;
+              return dueSoon > 0 ? (
+                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                  {dueSoon} por vencer
+                </span>
+              ) : null;
+            })()}
+          </h2>
         </div>
         <div className="divide-y divide-gray-100">
           {(myEnrollments ?? []).length === 0 && (
@@ -504,6 +631,7 @@ export default async function MiEspacioPage({
             const updateStatus = updateEnrollmentStatus.bind(null, en.id, "/app/mi-espacio");
             const embedUrl = course?.video_url ? getVideoEmbedUrl(course.video_url) : null;
             const courseMaterials = materialsByCourseId.get(en.course_id) ?? [];
+            const dueBadge = dueDateBadge(en.due_date, en.status);
             return (
               <div key={en.id} className="px-6 py-4 text-sm">
                 <div className="flex items-center justify-between gap-3">
@@ -533,6 +661,11 @@ export default async function MiEspacioPage({
                     )}
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
+                    {dueBadge && (
+                      <span className={`rounded-full px-3 py-1 text-xs font-medium ${dueBadge.className}`}>
+                        {dueBadge.label}
+                      </span>
+                    )}
                     <span
                       className={`rounded-full px-3 py-1 text-xs font-medium ${
                         trainingStatusClass[en.status] ?? "bg-gray-100 text-gray-600"
