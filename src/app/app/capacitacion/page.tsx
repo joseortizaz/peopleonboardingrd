@@ -28,6 +28,26 @@ const statusClass: Record<string, string> = {
 const dateFmt = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("es-DO");
 const dateTimeFmt = (d: string) => new Date(d).toLocaleDateString("es-DO");
 
+// Recordatorio de fecha límite: mismo patrón de umbral que expirationBadge()
+// en Documentos, pero con una ventana de 7 días (en vez de 30) y solo para
+// inscripciones que aún no se han completado -- una vez completada, la
+// fecha límite ya no importa.
+function dueDateBadge(dueDate: string | null, status: string) {
+  if (!dueDate || status === "completada") return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const due = new Date(dueDate + "T00:00:00");
+  const diffDays = Math.round((due.getTime() - today.getTime()) / 86400000);
+
+  if (diffDays < 0) {
+    return { label: "Vencido", className: "bg-red-100 text-red-700" };
+  }
+  if (diffDays <= 7) {
+    return { label: "Por vencer", className: "bg-amber-100 text-amber-700" };
+  }
+  return null;
+}
+
 const fileSizeFmt = (bytes: number | null) => {
   if (!bytes) return "";
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
@@ -102,6 +122,10 @@ export default async function CapacitacionPage({
 
   const totalInfotepHours = infotepRows.reduce((acc, r) => acc + r.hours, 0);
 
+  const dueSoonCount = (enrollments ?? []).filter(
+    (e) => dueDateBadge(e.due_date, e.status) !== null
+  ).length;
+
   const materialsByCourse = new Map<string, NonNullable<typeof materials>>();
   (materials ?? []).forEach((m) => {
     const list = materialsByCourse.get(m.course_id) ?? [];
@@ -118,6 +142,11 @@ export default async function CapacitacionPage({
       <p className="mt-1 text-sm text-gray-500">
         Catálogo de cursos, contenido propio (video y material adjunto), inscripción de empleados
         y horas INFOTEP acumuladas.
+        {dueSoonCount > 0 && (
+          <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+            {dueSoonCount} inscripción(es) vencida(s) o por vencer
+          </span>
+        )}
       </p>
 
       {error && (
@@ -375,6 +404,12 @@ export default async function CapacitacionPage({
             Crea al menos un curso en el catálogo antes de inscribir empleados.
           </p>
         )}
+        <p className="mt-2 text-xs text-gray-400">
+          La fecha límite es opcional — cuando se asigna, la inscripción se
+          marca &quot;Por vencer&quot; a partir de 7 días antes (y
+          &quot;Vencido&quot; si ya pasó), tanto aquí como en el
+          autoservicio del empleado, hasta que se complete.
+        </p>
       </div>
 
       <div className="mt-6 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -395,6 +430,7 @@ export default async function CapacitacionPage({
               category: string | null;
               duration_hours: number;
             } | null;
+            const dueBadge = dueDateBadge(e.due_date, e.status);
             return (
               <div key={e.id} className="flex items-center justify-between gap-3 px-6 py-4 text-sm">
                 <div>
@@ -409,6 +445,11 @@ export default async function CapacitacionPage({
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-3">
+                  {dueBadge && (
+                    <span className={`rounded-full px-3 py-1 text-xs font-medium ${dueBadge.className}`}>
+                      {dueBadge.label}
+                    </span>
+                  )}
                   <span
                     className={`rounded-full px-3 py-1 text-xs font-medium ${
                       statusClass[e.status] ?? "bg-gray-100 text-gray-600"

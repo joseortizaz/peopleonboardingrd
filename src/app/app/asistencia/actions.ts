@@ -62,10 +62,31 @@ export async function deleteEmployeeShiftDay(
 export async function deleteTimeClockEntry(entryId: string) {
   const supabase = await createClient();
 
+  // Se leen las rutas de las fotos antes de borrar la fila, para poder
+  // limpiarlas del bucket time-clock-photos y no dejar archivos huérfanos
+  // (brecha menor documentada desde la migración 0027).
+  const { data: entry } = await supabase
+    .from("time_clock_entries")
+    .select("clock_in_photo_path, clock_out_photo_path")
+    .eq("id", entryId)
+    .maybeSingle();
+
   const { error } = await supabase.from("time_clock_entries").delete().eq("id", entryId);
 
   if (error) {
     console.error("deleteTimeClockEntry error:", error.message);
+  } else {
+    const paths = [entry?.clock_in_photo_path, entry?.clock_out_photo_path].filter(
+      (p): p is string => !!p
+    );
+    if (paths.length > 0) {
+      const { error: storageError } = await supabase.storage
+        .from("time-clock-photos")
+        .remove(paths);
+      if (storageError) {
+        console.error("deleteTimeClockEntry storage cleanup error:", storageError.message);
+      }
+    }
   }
 
   revalidatePath("/app/asistencia");

@@ -69,6 +69,16 @@ export default async function AppHomePage() {
     .eq("tenant_id", tenant.id)
     .eq("status", "pendiente");
 
+  const in7Days = new Date();
+  in7Days.setDate(in7Days.getDate() + 7);
+  const { count: dueSoonEnrollments } = await supabase
+    .from("training_enrollments")
+    .select("id", { count: "exact", head: true })
+    .eq("tenant_id", tenant.id)
+    .neq("status", "completada")
+    .not("due_date", "is", null)
+    .lte("due_date", in7Days.toISOString().slice(0, 10));
+
   let subscriptionCard: { planName: string; status: string; endDate: string | null } | null = null;
   if (tenant.myRole === "account_admin") {
     const { data: sub } = await supabase
@@ -254,7 +264,14 @@ export default async function AppHomePage() {
           href="/app/capacitacion"
           className={`${CARD_BASE} ${CARD_ACCENT.rose}`}
         >
-          <h2 className="font-medium text-gray-900">Capacitación</h2>
+          <h2 className="flex items-center gap-2 font-medium text-gray-900">
+            Capacitación
+            {!!dueSoonEnrollments && dueSoonEnrollments > 0 && (
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                {dueSoonEnrollments} por vencer
+              </span>
+            )}
+          </h2>
           <p className="mt-1 text-sm text-gray-500">
             Catálogo de cursos, inscripciones y horas INFOTEP acumuladas.
           </p>
