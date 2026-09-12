@@ -59,8 +59,16 @@ export async function updateSession(request: NextRequest) {
 
   if (pendingMfa) {
     if (!isMfaChallengeRoute) {
+      const next = request.nextUrl.pathname + request.nextUrl.search;
       const url = request.nextUrl.clone();
       url.pathname = "/login/mfa";
+      url.search = "";
+      // Se preserva a dónde iba el usuario (p. ej. /restablecer-password
+      // tras un enlace de recuperación) para volver ahí después del
+      // segundo factor, en vez de mandarlo siempre a /app.
+      if (next && next !== "/login/mfa") {
+        url.searchParams.set("next", next);
+      }
       return NextResponse.redirect(url);
     }
     return supabaseResponse;

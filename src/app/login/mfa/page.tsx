@@ -4,9 +4,9 @@ import { verifyLoginMfa } from "./actions";
 export default async function LoginMfaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; next?: string }>;
 }) {
-  const { error } = await searchParams;
+  const { error, next } = await searchParams;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
@@ -25,6 +25,7 @@ export default async function LoginMfaPage({
         )}
 
         <form action={verifyLoginMfa} className="space-y-4">
+          {next && <input type="hidden" name="next" value={next} />}
           <div>
             <label htmlFor="code" className="block text-sm font-medium text-gray-700">
               Código

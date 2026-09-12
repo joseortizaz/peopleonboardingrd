@@ -47,5 +47,9 @@ export async function verifyLoginMfa(formData: FormData) {
     );
   }
 
-  redirect("/app");
+  const next = (formData.get("next") as string) || "/app";
+  // Solo se acepta una ruta interna (evita un redirect abierto si alguien
+  // manipulara el campo oculto "next").
+  const safeNext = next.startsWith("/") && !next.startsWith("//") ? next : "/app";
+  redirect(safeNext);
 }

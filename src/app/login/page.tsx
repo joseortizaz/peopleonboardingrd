@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { login, signup } from "./actions";
+import PasswordInput from "./PasswordInput";
 
 export default async function LoginPage({
   searchParams,
@@ -55,16 +57,23 @@ export default async function LoginPage({
             />
           </div>
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-              Contraseña
-            </label>
-            <input
+            <div className="flex items-center justify-between">
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                Contraseña
+              </label>
+              <Link
+                href="/login/olvide-password"
+                className="text-xs text-gray-500 hover:text-gray-900 hover:underline"
+              >
+                ¿Olvidaste tu contraseña?
+              </Link>
+            </div>
+            <PasswordInput
               id="password"
               name="password"
-              type="password"
               required
               minLength={6}
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              autoComplete="current-password"
             />
           </div>
 
