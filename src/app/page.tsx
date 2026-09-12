@@ -100,8 +100,18 @@ export default async function Home({
       {/* ===== Header ===== */}
       <header className="sticky top-0 z-40 border-b border-gray-100 bg-white/90 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <span className="text-lg font-semibold tracking-tight">
-            People Onboarding RD
+          <span className="flex items-center gap-2.5">
+            <svg width="36" height="36" viewBox="0 0 40 40" aria-hidden="true" className="shrink-0">
+              <circle cx="14" cy="16" r="10" fill="#14b8a6" />
+              <circle cx="27" cy="13" r="7.5" fill="#1e293b" />
+              <circle cx="20" cy="27" r="9" fill="#0f766e" />
+            </svg>
+            <span className="leading-none">
+              <span className="block text-lg font-bold text-slate-800">People</span>
+              <span className="block text-[11px] font-bold tracking-widest text-teal-600">
+                ONBOARDING RD
+              </span>
+            </span>
           </span>
           <nav className="hidden items-center gap-7 text-sm text-gray-600 md:flex">
             <a href="#areas" className="hover:text-gray-900">
@@ -135,55 +145,72 @@ export default async function Home({
       </header>
 
       {/* ===== Hero ===== */}
-      <section className="mx-auto max-w-6xl px-6 pt-14 pb-20">
+      <section className="mx-auto max-w-6xl overflow-hidden px-6 pt-14 pb-24">
         <div className="grid items-center gap-12 lg:grid-cols-2">
           <div>
-            <span className="inline-flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600">
-              Hecho para empresas y firmas de outsourcing en RD
+            <span className="text-xs font-bold tracking-[0.15em] text-teal-600">
+              TU EQUIPO, NUESTRA PRIORIDAD
             </span>
-            <h1 className="mt-5 text-4xl font-semibold tracking-tight text-gray-900 sm:text-5xl">
-              Toda la gestión de RR.HH. de tu empresa, en un solo lugar
+            <h1 className="mt-3 text-4xl font-bold tracking-tight text-slate-800 sm:text-5xl">
+              La plataforma integral
+              <br />
+              de Gestión Humana
+              <br />
+              <span className="text-teal-600">para empresas y</span>
+              <br />
+              gestores de <span className="text-teal-600">outsourcing</span>
             </h1>
-            <p className="mt-5 text-lg text-gray-500">
-              Reclutamiento, nómina, asistencia, beneficios, desempeño y
-              documentos legales — con las reglas de la legislación laboral
-              dominicana (SFS, AFP, INFOTEP) ya incorporadas.
+            <p className="mt-5 max-w-md text-lg text-gray-500">
+              Simplifica, automatiza y centraliza todos los procesos de
+              Recursos Humanos en un solo lugar. Desde el reclutamiento hasta
+              la salida, todo lo que necesitas para gestionar tu talento
+              humano de forma eficiente, segura y profesional.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <Link
                 href="/precios"
-                className="rounded-md bg-gray-900 px-6 py-3 text-sm font-medium text-white hover:bg-gray-800"
+                className="inline-flex items-center gap-2 rounded-lg bg-slate-800 px-6 py-3 text-sm font-semibold text-white hover:bg-slate-700"
               >
-                Ver planes
+                Comienza ahora
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+                  <path d="M5 12h14M13 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
               </Link>
               <a
-                href="#contacto"
-                className="rounded-md border border-gray-300 px-6 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                href="#caracteristicas"
+                className="rounded-lg border-2 border-slate-200 px-6 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
               >
-                Hablar con nosotros
+                Conoce más
               </a>
             </div>
-            <p className="mt-6 text-sm text-gray-400">
-              Sin tarjeta de crédito para empezar. Activa el pago desde tu
-              panel una vez creada tu cuenta.
-            </p>
           </div>
 
           <div className="relative">
-            <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl">
-              <div className="flex items-center gap-1.5 border-b border-gray-100 bg-gray-50 px-4 py-2.5">
-                <span className="h-2.5 w-2.5 rounded-full bg-red-300" />
-                <span className="h-2.5 w-2.5 rounded-full bg-amber-300" />
-                <span className="h-2.5 w-2.5 rounded-full bg-emerald-300" />
+            <div className="pointer-events-none absolute -right-16 -top-16 h-80 w-80 rounded-full bg-teal-50 blur-3xl" />
+            <svg
+              width="30"
+              height="30"
+              viewBox="0 0 24 24"
+              fill="#2dd4bf"
+              aria-hidden="true"
+              className="absolute right-10 -top-2 hidden sm:block"
+            >
+              <path d="M12 0l1.8 8.2L22 10l-8.2 1.8L12 20l-1.8-8.2L2 10l8.2-1.8z" />
+            </svg>
+
+            <div className="relative mx-auto max-w-xl">
+              <div className="overflow-hidden rounded-t-2xl border-[10px] border-b-0 border-slate-800 bg-slate-800 shadow-2xl">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/hero-dashboard.jpg"
+                  alt="Panel de People Onboarding RD mostrando los módulos de gestión humana"
+                  width={1568}
+                  height={709}
+                  className="block w-full"
+                />
               </div>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="/hero-dashboard.jpg"
-                alt="Panel de People Onboarding RD mostrando los módulos de gestión humana"
-                width={1568}
-                height={709}
-                className="w-full"
-              />
+              <div className="h-4 rounded-b-xl bg-gradient-to-b from-slate-700 to-slate-800 shadow-lg" />
+              <div className="mx-auto h-1.5 w-28 rounded-b-md bg-slate-400/60" />
             </div>
           </div>
         </div>
