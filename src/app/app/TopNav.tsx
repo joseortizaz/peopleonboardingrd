@@ -67,6 +67,13 @@ const COLOR_STYLES = {
     activeBg: "bg-violet-50",
     itemHover: "hover:bg-violet-50 hover:text-violet-700",
   },
+  orange: {
+    dot: "bg-orange-500",
+    text: "text-orange-700",
+    hoverText: "hover:text-orange-700",
+    activeBg: "bg-orange-50",
+    itemHover: "hover:bg-orange-50 hover:text-orange-700",
+  },
 } as const;
 
 // Agrupación pensada para reducir ~19 enlaces sueltos a unos pocos menús con
@@ -243,6 +250,7 @@ export function TopNav({
           ))}
           <NavSingle href="/app/documentos" label="Documentos" color="amber" />
           <NavSingle href="/app/portal-cliente/gestionar" label="Portal del cliente" color="teal" />
+          <NavSingle href="/app/actividad" label="Registro de actividad" color="orange" />
         </>
       )}
 

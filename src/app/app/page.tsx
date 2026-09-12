@@ -16,6 +16,7 @@ const CARD_ACCENT = {
   sky: "border-t-sky-400 hover:border-sky-300",
   teal: "border-t-teal-400 hover:border-teal-300",
   violet: "border-t-violet-400 hover:border-violet-300",
+  orange: "border-t-orange-400 hover:border-orange-300",
 } as const;
 
 const CARD_BASE =
@@ -187,6 +188,17 @@ export default async function AppHomePage() {
           <p className="mt-1 text-sm text-gray-500">
             Invita a tu cliente a una vista de solo lectura de vacantes,
             contrataciones y evaluaciones.
+          </p>
+        </Link>
+
+        <Link
+          href="/app/actividad"
+          className={`${CARD_BASE} ${CARD_ACCENT.orange}`}
+        >
+          <h2 className="font-medium text-gray-900">Registro de actividad</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            Hitos facturables registrados automáticamente, para armar la
+            factura mensual de outsourcing de este cliente.
           </p>
         </Link>
 
