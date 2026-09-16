@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentTenant, isManagerRole } from "@/lib/supabase/tenant";
 import { createVacancy, deleteVacancy, updateVacancyStatus } from "./actions";
+import CopyLinkButton from "./CopyLinkButton";
+import ExportCandidatesCsvButton from "./ExportCandidatesCsvButton";
 
 const statusLabel: Record<string, string> = {
   draft: "Borrador",
@@ -160,6 +162,13 @@ export default async function AtsPage() {
                   >
                     Ver formulario público
                   </a>
+                )}
+                {v.status === "published" && <CopyLinkButton slug={v.slug} />}
+                {candidateCount > 0 && (
+                  <ExportCandidatesCsvButton
+                    vacancyId={v.id}
+                    fileName={`candidatos-${v.slug}.csv`}
+                  />
                 )}
                 <form action={remove}>
                   <button className="rounded-md border border-gray-300 px-2 py-1 text-red-600 hover:bg-gray-50">

@@ -22,6 +22,12 @@ export default async function ApplyPage({
 
   if (!vacancy) notFound();
 
+  const { data: questions } = await supabase
+    .from("vacancy_questions")
+    .select("id, question_text, question_type, options, required")
+    .eq("vacancy_id", vacancy.id)
+    .order("order_index", { ascending: true });
+
   const submit = applyToVacancy.bind(null, vacancy.id, vacancy.slug);
 
   return (
@@ -78,6 +84,76 @@ export default async function ApplyPage({
                 placeholder="Teléfono (809-000-0000)"
                 className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
               />
+              <div>
+                <label className="block text-xs font-medium text-gray-500">
+                  Currículum (CV) en PDF -- opcional, máx. 5 MB
+                </label>
+                <input
+                  name="resume"
+                  type="file"
+                  accept="application/pdf"
+                  className="mt-1 block w-full text-sm text-gray-700 file:mr-3 file:rounded-md file:border-0 file:bg-gray-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-gray-700 hover:file:bg-gray-200"
+                />
+              </div>
+              {(questions ?? []).length > 0 && (
+                <div className="space-y-3 border-t border-gray-200 pt-3">
+                  <p className="text-xs font-medium text-gray-500">
+                    Preguntas adicionales
+                  </p>
+                  {(questions ?? []).map((q) => (
+                    <div key={q.id}>
+                      <label className="block text-sm text-gray-700">
+                        {q.question_text}{" "}
+                        {q.required && (
+                          <span className="text-red-500">*</span>
+                        )}
+                      </label>
+                      {q.question_type === "texto" && (
+                        <input
+                          name={`answer_${q.id}`}
+                          type="text"
+                          required={q.required}
+                          className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                        />
+                      )}
+                      {q.question_type === "si_no" && (
+                        <select
+                          name={`answer_${q.id}`}
+                          required={q.required}
+                          defaultValue=""
+                          className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                        >
+                          <option value="" disabled>
+                            Selecciona una opción
+                          </option>
+                          <option value="Sí">Sí</option>
+                          <option value="No">No</option>
+                        </select>
+                      )}
+                      {q.question_type === "opcion_multiple" && (
+                        <select
+                          name={`answer_${q.id}`}
+                          required={q.required}
+                          defaultValue=""
+                          className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                        >
+                          <option value="" disabled>
+                            Selecciona una opción
+                          </option>
+                          {(Array.isArray(q.options)
+                            ? (q.options as string[])
+                            : []
+                          ).map((opt) => (
+                            <option key={opt} value={opt}>
+                              {opt}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
               <button
                 type="submit"
                 className="w-full rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"

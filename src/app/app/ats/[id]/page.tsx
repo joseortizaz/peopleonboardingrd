@@ -22,6 +22,7 @@ type Candidate = {
   email: string;
   phone: string | null;
   stage: string;
+  resume_url: string | null;
 };
 
 export default async function VacancyKanbanPage({
@@ -46,7 +47,7 @@ export default async function VacancyKanbanPage({
 
   const { data: candidates } = await supabase
     .from("candidates")
-    .select("id, full_name, email, phone, stage")
+    .select("id, full_name, email, phone, stage, resume_url")
     .eq("vacancy_id", id)
     .order("created_at", { ascending: true });
 
@@ -59,9 +60,17 @@ export default async function VacancyKanbanPage({
         <Link href="/app/ats" className="text-sm text-gray-500 hover:underline">
           ← Vacantes
         </Link>
-        <h1 className="mt-1 text-xl font-semibold text-gray-900">
-          {vacancy.title}
-        </h1>
+        <div className="mt-1 flex items-center justify-between">
+          <h1 className="text-xl font-semibold text-gray-900">
+            {vacancy.title}
+          </h1>
+          <Link
+            href={`/app/ats/${vacancy.id}/preguntas`}
+            className="text-sm text-gray-500 hover:underline"
+          >
+            Preguntas filtro
+          </Link>
+        </div>
         <p className="text-sm text-gray-500">
           {(candidates ?? []).length} candidato(s) en el pipeline
         </p>
@@ -87,9 +96,20 @@ export default async function VacancyKanbanPage({
                       key={candidate.id}
                       className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm"
                     >
-                      <p className="text-sm font-medium text-gray-900">
+                      <Link
+                        href={`/app/ats/${vacancy.id}/candidatos/${candidate.id}`}
+                        className="inline-flex items-center gap-1 text-sm font-medium text-gray-900 hover:underline"
+                      >
                         {candidate.full_name}
-                      </p>
+                        {candidate.resume_url && (
+                          <span
+                            title="Tiene CV adjunto"
+                            className="text-xs text-gray-400"
+                          >
+                            📎
+                          </span>
+                        )}
+                      </Link>
                       <p className="truncate text-xs text-gray-500">
                         {candidate.email}
                       </p>
