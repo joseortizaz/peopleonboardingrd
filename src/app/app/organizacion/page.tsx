@@ -140,12 +140,22 @@ export default async function OrganizacionPage({
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-10">
-      <h1 className="text-xl font-semibold text-gray-900">
-        Estructura organizacional — {tenant.name}
-      </h1>
-      <p className="mt-1 text-sm text-gray-500">
-        Departamentos de tu empresa. Puedes anidarlos eligiendo un departamento padre.
-      </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold text-gray-900">
+            Estructura organizacional — {tenant.name}
+          </h1>
+          <p className="mt-1 text-sm text-gray-500">
+            Departamentos de tu empresa. Puedes anidarlos eligiendo un departamento padre.
+          </p>
+        </div>
+        <a
+          href="/app/organizacion/puestos"
+          className="text-sm text-blue-600 hover:underline"
+        >
+          Ver catálogo de puestos
+        </a>
+      </div>
 
       {errorMessage && (
         <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">

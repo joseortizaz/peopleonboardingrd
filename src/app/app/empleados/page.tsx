@@ -2,7 +2,13 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentTenant, isManagerRole } from "@/lib/supabase/tenant";
-import { createEmployee, deleteEmployee, updateEmployeeSalary, updateEmployeeBankInfo } from "./actions";
+import {
+  createEmployee,
+  deleteEmployee,
+  updateEmployeeSalary,
+  updateEmployeeBankInfo,
+  updateEmployeePosition,
+} from "./actions";
 
 const statusLabel: Record<string, string> = {
   active: "Activo",
@@ -27,23 +33,30 @@ export default async function EmpleadosPage({
 
   const supabase = await createClient();
 
-  const [{ data: employees }, { data: departments }] = await Promise.all([
-    supabase
-      .from("employees")
-      .select(
-        "id, full_name, position, hire_date, status, department_id, email, monthly_salary, national_id, bank_name, bank_account_type, bank_account_number"
-      )
-      .eq("tenant_id", tenant.id)
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("departments")
-      .select("id, name")
-      .eq("tenant_id", tenant.id),
-  ]);
+  const [{ data: employees }, { data: departments }, { data: jobPositions }] =
+    await Promise.all([
+      supabase
+        .from("employees")
+        .select(
+          "id, full_name, position, job_position_id, hire_date, status, department_id, email, monthly_salary, national_id, bank_name, bank_account_type, bank_account_number"
+        )
+        .eq("tenant_id", tenant.id)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("departments")
+        .select("id, name")
+        .eq("tenant_id", tenant.id),
+      supabase
+        .from("job_positions")
+        .select("id, title")
+        .eq("tenant_id", tenant.id)
+        .order("title", { ascending: true }),
+    ]);
 
   const createEmployeeForTenant = createEmployee.bind(null, tenant.id, tenant.accountId);
   const departmentName = (id: string | null) =>
     departments?.find((d) => d.id === id)?.name ?? "—";
+  const allJobPositions = jobPositions ?? [];
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
@@ -97,12 +110,18 @@ export default async function EmpleadosPage({
               </option>
             ))}
           </select>
-          <input
-            name="position"
-            type="text"
-            placeholder="Puesto"
-            className="min-w-[150px] rounded-md border border-gray-300 px-3 py-2 text-sm"
-          />
+          <select
+            name="job_position_id"
+            defaultValue=""
+            className="min-w-[150px] rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
+          >
+            <option value="">Sin puesto</option>
+            {allJobPositions.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.title}
+              </option>
+            ))}
+          </select>
           <input
             name="hire_date"
             type="date"
@@ -154,6 +173,7 @@ export default async function EmpleadosPage({
               const remove = deleteEmployee.bind(null, e.id);
               const updateSalary = updateEmployeeSalary.bind(null, e.id);
               const updateBankInfo = updateEmployeeBankInfo.bind(null, e.id);
+              const updatePosition = updateEmployeePosition.bind(null, e.id);
               const hasBankInfo =
                 !!e.national_id && !!e.bank_name && !!e.bank_account_type && !!e.bank_account_number;
               return (
@@ -163,7 +183,33 @@ export default async function EmpleadosPage({
                   <td className="px-4 py-2 text-gray-600">
                     {departmentName(e.department_id)}
                   </td>
-                  <td className="px-4 py-2 text-gray-600">{e.position ?? "—"}</td>
+                  <td className="px-4 py-2 text-gray-600">
+                    <form action={updatePosition} className="flex items-center gap-1">
+                      <select
+                        name="job_position_id"
+                        defaultValue={e.job_position_id ?? ""}
+                        className="w-32 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs"
+                      >
+                        <option value="">Sin puesto</option>
+                        {allJobPositions.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.title}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="submit"
+                        className="text-xs text-gray-500 hover:text-gray-900 hover:underline"
+                      >
+                        Guardar
+                      </button>
+                    </form>
+                    {!e.job_position_id && e.position && (
+                      <p className="mt-0.5 text-xs text-gray-400">
+                        Antes: {e.position}
+                      </p>
+                    )}
+                  </td>
                   <td className="px-4 py-2 text-gray-600">
                     <form action={updateSalary} className="flex items-center gap-1">
                       <input

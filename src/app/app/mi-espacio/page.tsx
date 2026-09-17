@@ -170,7 +170,9 @@ export default async function MiEspacioPage({
 
   const { data: employee } = await supabase
     .from("employees")
-    .select("id, full_name, email, position, hire_date, status, department_id")
+    .select(
+      "id, full_name, email, position, hire_date, status, department_id, job_position_id, job_positions(title)"
+    )
     .eq("tenant_id", tenant.id)
     .eq("profile_id", user.id)
     .maybeSingle();
@@ -352,7 +354,11 @@ export default async function MiEspacioPage({
           <dt className="text-gray-500">Departamento</dt>
           <dd className="text-gray-900">{department?.name ?? "—"}</dd>
           <dt className="text-gray-500">Puesto</dt>
-          <dd className="text-gray-900">{employee.position ?? "—"}</dd>
+          <dd className="text-gray-900">
+            {(employee.job_positions as unknown as { title: string } | null)?.title ??
+              employee.position ??
+              "—"}
+          </dd>
           <dt className="text-gray-500">Fecha de ingreso</dt>
           <dd className="text-gray-900">{employee.hire_date ?? "—"}</dd>
           <dt className="text-gray-500">Estado</dt>

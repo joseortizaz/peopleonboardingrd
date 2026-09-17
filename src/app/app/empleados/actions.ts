@@ -13,7 +13,7 @@ export async function createEmployee(
 
   const full_name = (formData.get("full_name") as string)?.trim();
   const department_id = (formData.get("department_id") as string) || null;
-  const position = (formData.get("position") as string)?.trim() || null;
+  const job_position_id = (formData.get("job_position_id") as string) || null;
   const hire_date = (formData.get("hire_date") as string) || null;
   const email = (formData.get("email") as string)?.trim().toLowerCase() || null;
   const monthly_salary_raw = (formData.get("monthly_salary") as string)?.trim();
@@ -54,7 +54,7 @@ export async function createEmployee(
     tenant_id: tenantId,
     full_name,
     department_id,
-    position,
+    job_position_id,
     hire_date,
     email,
     monthly_salary,
@@ -96,6 +96,23 @@ export async function updateEmployeeSalary(employeeId: string, formData: FormDat
 
   if (error) {
     console.error("updateEmployeeSalary error:", error.message);
+  }
+
+  revalidatePath("/app/empleados");
+}
+
+export async function updateEmployeePosition(employeeId: string, formData: FormData) {
+  const supabase = await createClient();
+
+  const job_position_id = (formData.get("job_position_id") as string) || null;
+
+  const { error } = await supabase
+    .from("employees")
+    .update({ job_position_id })
+    .eq("id", employeeId);
+
+  if (error) {
+    console.error("updateEmployeePosition error:", error.message);
   }
 
   revalidatePath("/app/empleados");
