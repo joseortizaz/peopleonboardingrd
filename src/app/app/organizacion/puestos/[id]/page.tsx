@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentTenant, isManagerRole } from "@/lib/supabase/tenant";
-import { createSalaryBand } from "./actions";
+import { createSalaryBand, updateJobPositionDescription } from "./actions";
 
 const currency = new Intl.NumberFormat("es-DO", {
   style: "currency",
@@ -46,7 +46,9 @@ export default async function PuestoDetallePage({
 
   const { data: position } = await supabase
     .from("job_positions")
-    .select("id, title, mission, department_id, departments(name)")
+    .select(
+      "id, title, mission, department_id, functions, technical_competencies, soft_competencies, departments(name)"
+    )
     .eq("id", id)
     .eq("tenant_id", tenant.id)
     .maybeSingle();
@@ -73,6 +75,11 @@ export default async function PuestoDetallePage({
   const departmentName =
     (position.departments as unknown as { name: string } | null)?.name ?? "—";
   const createBandForPosition = createSalaryBand.bind(
+    null,
+    tenant.id,
+    position.id
+  );
+  const updateDescriptionForPosition = updateJobPositionDescription.bind(
     null,
     tenant.id,
     position.id
@@ -105,6 +112,55 @@ export default async function PuestoDetallePage({
           {errorMessage}
         </div>
       )}
+
+      <div className="mt-6 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+        <h2 className="text-sm font-medium text-gray-700">Funciones y competencias</h2>
+        <p className="mt-1 text-xs text-gray-400">
+          Todo opcional -- útil como referencia para evaluación de desempeño y
+          para redactar vacantes de este puesto.
+        </p>
+        <form
+          action={updateDescriptionForPosition}
+          className="mt-3 flex flex-col gap-3"
+        >
+          <label className="text-xs font-medium text-gray-500">
+            Funciones principales
+            <textarea
+              name="functions"
+              defaultValue={position.functions ?? ""}
+              rows={3}
+              placeholder="Ej. Reclutar y seleccionar personal, dar seguimiento a evaluaciones de desempeño..."
+              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900"
+            />
+          </label>
+          <label className="text-xs font-medium text-gray-500">
+            Competencias técnicas
+            <textarea
+              name="technical_competencies"
+              defaultValue={position.technical_competencies ?? ""}
+              rows={2}
+              placeholder="Ej. Manejo de Excel avanzado, legislación laboral dominicana..."
+              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900"
+            />
+          </label>
+          <label className="text-xs font-medium text-gray-500">
+            Competencias blandas
+            <textarea
+              name="soft_competencies"
+              defaultValue={position.soft_competencies ?? ""}
+              rows={2}
+              placeholder="Ej. Comunicación asertiva, trabajo en equipo..."
+              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900"
+            />
+          </label>
+          <button
+            type="submit"
+            className="self-start rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
+          >
+            Guardar
+          </button>
+        </form>
+      </div>
 
       <div className="mt-6 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
         <h2 className="text-sm font-medium text-gray-700">Banda salarial vigente</h2>

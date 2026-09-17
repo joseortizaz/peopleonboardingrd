@@ -87,3 +87,35 @@ export async function createSalaryBand(
   revalidatePath(`/app/organizacion/puestos/${jobPositionId}`);
   redirect(`/app/organizacion/puestos/${jobPositionId}`);
 }
+
+export async function updateJobPositionDescription(
+  tenantId: string,
+  jobPositionId: string,
+  formData: FormData
+) {
+  const supabase = await createClient();
+
+  const functions = (formData.get("functions") as string)?.trim() || null;
+  const technical_competencies =
+    (formData.get("technical_competencies") as string)?.trim() || null;
+  const soft_competencies =
+    (formData.get("soft_competencies") as string)?.trim() || null;
+
+  const { error } = await supabase
+    .from("job_positions")
+    .update({ functions, technical_competencies, soft_competencies })
+    .eq("id", jobPositionId)
+    .eq("tenant_id", tenantId);
+
+  if (error) {
+    console.error("updateJobPositionDescription error:", error.message);
+    redirect(
+      `/app/organizacion/puestos/${jobPositionId}?error=${encodeURIComponent(
+        "No se pudieron guardar las funciones y competencias."
+      )}`
+    );
+  }
+
+  revalidatePath(`/app/organizacion/puestos/${jobPositionId}`);
+  redirect(`/app/organizacion/puestos/${jobPositionId}`);
+}
