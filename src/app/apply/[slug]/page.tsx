@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import DataConsentCheckbox from "@/components/DataConsentCheckbox";
 import { applyToVacancy } from "./actions";
 
 export default async function ApplyPage({
@@ -64,6 +65,22 @@ export default async function ApplyPage({
               </p>
             )}
             <form action={submit} className="mt-4 space-y-3">
+              {/* Honeypot anti-spam: oculto para una persona, visible para
+                  un bot que autocompleta todos los campos de un formulario. */}
+              <div
+                aria-hidden="true"
+                className="absolute -left-[9999px] top-auto h-px w-px overflow-hidden"
+              >
+                <label htmlFor="website">No completar este campo</label>
+                <input
+                  id="website"
+                  name="website"
+                  type="text"
+                  tabIndex={-1}
+                  autoComplete="off"
+                />
+              </div>
+              <input type="hidden" name="form_rendered_at" value={Date.now()} />
               <input
                 name="full_name"
                 type="text"
@@ -154,6 +171,9 @@ export default async function ApplyPage({
                   ))}
                 </div>
               )}
+              <div className="border-t border-gray-200 pt-3">
+                <DataConsentCheckbox />
+              </div>
               <button
                 type="submit"
                 className="w-full rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"

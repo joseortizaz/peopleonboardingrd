@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentTenant, isManagerRole } from "@/lib/supabase/tenant";
-import { createVacancy, deleteVacancy, updateVacancyStatus } from "./actions";
+import { createVacancy, deleteVacancy, duplicateVacancy, updateVacancyStatus } from "./actions";
 import CopyLinkButton from "./CopyLinkButton";
 import ExportCandidatesCsvButton from "./ExportCandidatesCsvButton";
 
@@ -49,6 +49,13 @@ export default async function AtsPage() {
       <p className="mt-1 text-sm text-gray-500">
         Vacantes y su pipeline de candidatos.
       </p>
+      <a
+        href={`/careers/${tenant.slug}`}
+        target="_blank"
+        className="mt-1 inline-block text-xs text-blue-700 hover:underline"
+      >
+        Ver bolsa de empleo pública →
+      </a>
 
       <div className="mt-6 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
         <h2 className="text-sm font-medium text-gray-700">Nueva vacante</h2>
@@ -106,6 +113,7 @@ export default async function AtsPage() {
           const close = updateVacancyStatus.bind(null, v.id, "closed");
           const reopenDraft = updateVacancyStatus.bind(null, v.id, "draft");
           const remove = deleteVacancy.bind(null, v.id);
+          const duplicate = duplicateVacancy.bind(null, v.id);
 
           return (
             <div
@@ -170,6 +178,11 @@ export default async function AtsPage() {
                     fileName={`candidatos-${v.slug}.csv`}
                   />
                 )}
+                <form action={duplicate}>
+                  <button className="rounded-md border border-gray-300 px-2 py-1 hover:bg-gray-50">
+                    Duplicar
+                  </button>
+                </form>
                 <form action={remove}>
                   <button className="rounded-md border border-gray-300 px-2 py-1 text-red-600 hover:bg-gray-50">
                     Eliminar

@@ -1,6 +1,7 @@
 "use server";
 
-import { randomUUID } from "crypto";
+import { randomUUID, createHash } from "crypto";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
@@ -13,6 +14,50 @@ export async function applyToVacancy(
 ) {
   const supabase = await createClient();
 
+  // --- Anti-spam capa 1: honeypot. Un campo oculto que ningun humano
+  // llena (nunca lo ve), pero que un bot que autocompleta formularios
+  // si suele llenar. No se revela que fue detectado -- se responde
+  // igual que un envio exitoso para no darle retroalimentacion al bot.
+  const honeypot = (formData.get("website") as string)?.trim();
+  if (honeypot) {
+    redirect(`/apply/${slug}?ok=1`);
+  }
+
+  // --- Anti-spam capa 2: time-trap. Un formulario real toma al menos
+  // unos segundos en llenarse; un envio automatizado normalmente ocurre
+  // casi instantaneo tras cargar la pagina. Mismo trato silencioso.
+  const renderedAtRaw = formData.get("form_rendered_at") as string;
+  const renderedAt = renderedAtRaw ? Number(renderedAtRaw) : 0;
+  const elapsedMs = renderedAt ? Date.now() - renderedAt : Number.POSITIVE_INFINITY;
+  if (elapsedMs < 3000) {
+    redirect(`/apply/${slug}?ok=1`);
+  }
+
+  // --- Anti-spam capa 3: limite de intentos por IP. Este si se le
+  // informa al usuario (a diferencia de las capas de arriba) porque
+  // puede ser un humano real enviando varias aplicaciones legitimas.
+  const headersList = await headers();
+  const ip =
+    headersList.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    headersList.get("x-real-ip") ||
+    "unknown";
+  const ipHash = createHash("sha256").update(ip).digest("hex");
+
+  const { data: allowed } = await supabase.rpc("check_public_form_rate_limit", {
+    p_route: "apply",
+    p_ip_hash: ipHash,
+    p_window_minutes: 10,
+    p_max_attempts: 5,
+  });
+
+  if (allowed === false) {
+    redirect(
+      `/apply/${slug}?error=${encodeURIComponent(
+        "Demasiadas solicitudes desde tu conexión. Intenta de nuevo más tarde."
+      )}`
+    );
+  }
+
   const full_name = (formData.get("full_name") as string)?.trim();
   const email = (formData.get("email") as string)?.trim();
   const phone = (formData.get("phone") as string)?.trim() || null;
@@ -20,6 +65,27 @@ export async function applyToVacancy(
 
   if (!full_name || !email) {
     redirect(`/apply/${slug}?error=Nombre+y+correo+son+obligatorios`);
+  }
+
+  if (!formData.get("data_consent")) {
+    redirect(
+      `/apply/${slug}?error=${encodeURIComponent(
+        "Debes aceptar el tratamiento de tus datos personales para continuar."
+      )}`
+    );
+  }
+
+  const { data: alreadyApplied } = await supabase.rpc(
+    "candidate_already_applied",
+    { p_vacancy_id: vacancyId, p_email: email }
+  );
+
+  if (alreadyApplied) {
+    redirect(
+      `/apply/${slug}?error=${encodeURIComponent(
+        "Ya recibimos una aplicación con este correo para esta vacante."
+      )}`
+    );
   }
 
   let resume_url: string | null = null;
@@ -120,6 +186,7 @@ export async function applyToVacancy(
       resume_url,
       resume_file_name,
       resume_size,
+      data_consent_at: new Date().toISOString(),
     })
     .select("id")
     .single();
