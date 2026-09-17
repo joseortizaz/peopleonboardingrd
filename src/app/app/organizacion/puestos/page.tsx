@@ -199,6 +199,12 @@ export default async function PuestosPage({
                         </button>
                       </form>
                     </details>
+                    <Link
+                      href={`/app/organizacion/puestos/${p.id}`}
+                      className="text-xs text-blue-600 hover:underline"
+                    >
+                      Banda salarial
+                    </Link>
                     <form action={deleteAction}>
                       <button
                         type="submit"
