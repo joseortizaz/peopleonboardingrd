@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { createPlan, upsertSubscription, resolvePaymentRequest } from "./actions";
+import { createPlan, upsertSubscription, resolvePaymentRequest, setPlanArchived } from "./actions";
 
 const currency = new Intl.NumberFormat("es-DO", {
   style: "currency",
@@ -28,6 +28,7 @@ type Plan = {
   price_reference: number | null;
   billing_period: string;
   is_public: boolean;
+  archived: boolean;
 };
 
 type Subscription = {
@@ -83,7 +84,7 @@ export default async function SuperAdminPage({
         .order("created_at", { ascending: true }),
       supabase
         .from("subscription_plans")
-        .select("id, name, price_reference, billing_period, is_public")
+        .select("id, name, price_reference, billing_period, is_public, archived")
         .order("created_at", { ascending: true }),
       supabase
         .from("account_subscriptions")
@@ -221,33 +222,62 @@ export default async function SuperAdminPage({
 
       <section className="mt-8">
         <h2 className="text-sm font-semibold text-gray-900">Planes</h2>
-        <div className="mt-2 flex flex-wrap gap-3">
-          {typedPlans.map((p) => (
-            <div
-              key={p.id}
-              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-600"
-            >
-              <span className="font-medium text-gray-900">{p.name}</span>
-              {" · "}
-              {p.price_reference != null ? currency.format(p.price_reference) : "sin precio"}
-              {" / "}
-              {p.billing_period}
-              {p.is_public && (
-                <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-emerald-700">
-                  público
-                </span>
-              )}
-            </div>
-          ))}
+        <div className="mt-2 space-y-2">
+          {typedPlans.map((p) => {
+            const toggleArchived = setPlanArchived.bind(null, p.id, !p.archived);
+            return (
+              <div
+                key={p.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-600"
+              >
+                <div>
+                  <span className="font-medium text-gray-900">{p.name}</span>
+                  {" · "}
+                  {p.price_reference != null ? currency.format(p.price_reference) : "sin precio"}
+                  {" / "}
+                  {p.billing_period}
+                  {p.is_public && (
+                    <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-emerald-700">
+                      público
+                    </span>
+                  )}
+                  {p.archived && (
+                    <span className="ml-2 rounded-full bg-gray-200 px-2 py-0.5 text-gray-600">
+                      archivado
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Link
+                    href={`/app/superadmin/planes/${p.id}`}
+                    className="rounded-md border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-100"
+                  >
+                    Editar
+                  </Link>
+                  <form action={toggleArchived}>
+                    <button
+                      type="submit"
+                      className={`rounded-md px-2 py-1 text-xs font-medium ${
+                        p.archived
+                          ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                          : "border border-red-300 text-red-700 hover:bg-red-50"
+                      }`}
+                    >
+                      {p.archived ? "Reactivar" : "Archivar"}
+                    </button>
+                  </form>
+                </div>
+              </div>
+            );
+          })}
           {typedPlans.length === 0 && (
             <p className="text-xs text-gray-400">Aún no hay planes creados.</p>
           )}
         </div>
         <p className="mt-2 text-xs text-gray-400">
           Un plan creado aquí queda privado (no aparece en /precios ni en el
-          checkout) hasta marcarlo como público — eso se hace por ahora
-          directo en Supabase (columna <code>is_public</code> de{" "}
-          <code>subscription_plans</code>).
+          checkout) hasta marcarlo como público o editarlo con &quot;Editar&quot;
+          para ajustar descripción, características y límites.
         </p>
 
         <form action={createPlan} className="mt-3 flex flex-wrap items-end gap-2">

@@ -1,9 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
-export async function createEmployee(tenantId: string, formData: FormData) {
+export async function createEmployee(
+  tenantId: string,
+  accountId: string,
+  formData: FormData
+) {
   const supabase = await createClient();
 
   const full_name = (formData.get("full_name") as string)?.trim();
@@ -15,6 +20,35 @@ export async function createEmployee(tenantId: string, formData: FormData) {
   const monthly_salary = monthly_salary_raw ? Number(monthly_salary_raw) : null;
 
   if (!full_name) return;
+
+  // Limite de colaboradores del plan de la cuenta (ver migracion 0036).
+  // Sin suscripcion o sin limite definido para esa clave = ilimitado.
+  const { data: limits } = await supabase.rpc("get_account_plan_limits", {
+    p_account_id: accountId,
+  });
+  const maxEmployees = (limits as { max_employees?: number | null } | null)
+    ?.max_employees;
+
+  if (maxEmployees != null) {
+    const { data: accountTenants } = await supabase
+      .from("tenants")
+      .select("id")
+      .eq("account_id", accountId);
+    const tenantIds = (accountTenants ?? []).map((t) => t.id);
+
+    const { count } = await supabase
+      .from("employees")
+      .select("id", { count: "exact", head: true })
+      .in("tenant_id", tenantIds.length > 0 ? tenantIds : [tenantId]);
+
+    if ((count ?? 0) >= maxEmployees) {
+      redirect(
+        `/app/empleados?error=${encodeURIComponent(
+          `Alcanzaste el límite de ${maxEmployees} colaboradores de tu plan actual. Contacta a soporte para ampliar tu plan.`
+        )}`
+      );
+    }
+  }
 
   const { error } = await supabase.from("employees").insert({
     tenant_id: tenantId,
@@ -28,6 +62,7 @@ export async function createEmployee(tenantId: string, formData: FormData) {
 
   if (error) {
     console.error("createEmployee error:", error.message);
+    redirect(`/app/empleados?error=${encodeURIComponent(error.message)}`);
   }
 
   revalidatePath("/app/empleados");

@@ -23,6 +23,7 @@ export default async function PreciosPage() {
     .from("subscription_plans")
     .select("id, name, price_reference, billing_period, description, features")
     .eq("is_public", true)
+    .eq("archived", false)
     .order("price_reference", { ascending: true, nullsFirst: true });
 
   const typedPlans = (plans ?? []) as PublicPlan[];

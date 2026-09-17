@@ -15,7 +15,12 @@ const currency = new Intl.NumberFormat("es-DO", {
   currency: "DOP",
 });
 
-export default async function EmpleadosPage() {
+export default async function EmpleadosPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const { error } = await searchParams;
   const tenant = await getCurrentTenant();
   if (!tenant) redirect("/app/onboarding");
   if (!isManagerRole(tenant.myRole)) redirect("/app/mi-espacio");
@@ -36,7 +41,7 @@ export default async function EmpleadosPage() {
       .eq("tenant_id", tenant.id),
   ]);
 
-  const createEmployeeForTenant = createEmployee.bind(null, tenant.id);
+  const createEmployeeForTenant = createEmployee.bind(null, tenant.id, tenant.accountId);
   const departmentName = (id: string | null) =>
     departments?.find((d) => d.id === id)?.name ?? "—";
 
@@ -54,6 +59,12 @@ export default async function EmpleadosPage() {
         </Link>
         .
       </p>
+
+      {error && (
+        <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
 
       <div className="mt-6 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
         <h2 className="text-sm font-medium text-gray-700">Nuevo empleado</h2>

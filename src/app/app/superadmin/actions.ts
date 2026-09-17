@@ -29,6 +29,74 @@ export async function createPlan(formData: FormData) {
   revalidatePath("/app/superadmin");
 }
 
+export async function updatePlan(planId: string, formData: FormData) {
+  const supabase = await createClient();
+
+  const name = (formData.get("name") as string)?.trim();
+  const priceRaw = (formData.get("price_reference") as string)?.trim();
+  const billing_period = (formData.get("billing_period") as string) || "mensual";
+  const notes = (formData.get("notes") as string)?.trim() || null;
+  const is_public = formData.get("is_public") === "on";
+  const description = (formData.get("description") as string)?.trim() || null;
+  const featuresRaw = (formData.get("features") as string) ?? "";
+  const features = featuresRaw
+    .split("\n")
+    .map((f) => f.trim())
+    .filter(Boolean);
+  const maxEmployeesRaw = (formData.get("max_employees") as string)?.trim();
+  const maxTenantsRaw = (formData.get("max_tenants") as string)?.trim();
+  const plan_limits = {
+    max_employees: maxEmployeesRaw ? Number(maxEmployeesRaw) : null,
+    max_tenants: maxTenantsRaw ? Number(maxTenantsRaw) : null,
+  };
+
+  if (!name) return;
+
+  const { error } = await supabase
+    .from("subscription_plans")
+    .update({
+      name,
+      price_reference: priceRaw ? Number(priceRaw) : null,
+      billing_period,
+      notes,
+      is_public,
+      description,
+      features,
+      plan_limits,
+    })
+    .eq("id", planId);
+
+  if (error) {
+    console.error("updatePlan error:", error.message);
+    redirect(
+      `/app/superadmin/planes/${planId}?error=${encodeURIComponent(error.message)}`
+    );
+  }
+
+  revalidatePath("/app/superadmin");
+  revalidatePath(`/app/superadmin/planes/${planId}`);
+  revalidatePath("/precios");
+  revalidatePath("/app/facturacion");
+}
+
+export async function setPlanArchived(planId: string, archived: boolean) {
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("subscription_plans")
+    .update({ archived })
+    .eq("id", planId);
+
+  if (error) {
+    console.error("setPlanArchived error:", error.message);
+    redirect(`/app/superadmin?error=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath("/app/superadmin");
+  revalidatePath("/precios");
+  revalidatePath("/app/facturacion");
+}
+
 export async function upsertSubscription(accountId: string, formData: FormData) {
   const supabase = await createClient();
 

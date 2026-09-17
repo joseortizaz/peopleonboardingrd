@@ -90,6 +90,7 @@ export default async function FacturacionPage({
       .from("subscription_plans")
       .select("id, name, price_reference, billing_period, description")
       .eq("is_public", true)
+      .eq("archived", false)
       .order("price_reference", { ascending: true, nullsFirst: true }),
     supabase
       .from("subscription_payment_requests")
