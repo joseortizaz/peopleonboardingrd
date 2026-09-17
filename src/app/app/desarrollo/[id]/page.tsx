@@ -4,11 +4,16 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentTenant } from "@/lib/supabase/tenant";
 import {
   addDevelopmentGoal,
+  attachDevelopmentGoalEvidence,
   deleteDevelopmentGoal,
   deleteDevelopmentPlan,
+  unverifyDevelopmentGoal,
   updateDevelopmentGoalStatus,
+  verifyDevelopmentGoal,
 } from "../actions";
+import GoalEvidenceForm from "../GoalEvidenceForm";
 import GoalStatusSelect from "../GoalStatusSelect";
+import ViewEvidenceLink from "../ViewEvidenceLink";
 
 const statusLabel: Record<string, string> = {
   en_progreso: "En progreso",
@@ -28,6 +33,7 @@ const goalStatusClass: Record<string, string> = {
 };
 
 const dateFmt = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("es-DO");
+const dateTimeFmt = (d: string) => new Date(d).toLocaleString("es-DO");
 
 export default async function DevelopmentPlanDetailPage({
   params,
@@ -51,7 +57,9 @@ export default async function DevelopmentPlanDetailPage({
 
   const { data: goals } = await supabase
     .from("development_plan_goals")
-    .select("id, description, target_date, status, order_index")
+    .select(
+      "id, description, target_date, status, order_index, evidence_path, evidence_note, verified_by, verified_at"
+    )
     .eq("plan_id", id)
     .order("target_date", { ascending: true })
     .order("order_index", { ascending: true });
@@ -127,6 +135,9 @@ export default async function DevelopmentPlanDetailPage({
         {(goals ?? []).map((g) => {
           const updateStatus = updateDevelopmentGoalStatus.bind(null, g.id, revalidateTo);
           const removeGoal = deleteDevelopmentGoal.bind(null, g.id, revalidateTo);
+          const attachEvidence = attachDevelopmentGoalEvidence.bind(null, g.id, revalidateTo);
+          const verifyGoal = verifyDevelopmentGoal.bind(null, g.id, revalidateTo);
+          const unverifyGoal = unverifyDevelopmentGoal.bind(null, g.id, revalidateTo);
           return (
             <div
               key={g.id}
@@ -143,6 +154,42 @@ export default async function DevelopmentPlanDetailPage({
                 <p className="mt-1 text-xs text-gray-400">
                   {g.target_date ? `Vence ${dateFmt(g.target_date)}` : "Sin fecha objetivo"}
                 </p>
+                {g.status === "completado" && (
+                  <div className="mt-1.5 flex items-center gap-2">
+                    {g.verified_at ? (
+                      <>
+                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-800">
+                          Verificado el {dateTimeFmt(g.verified_at)}
+                        </span>
+                        <form action={unverifyGoal}>
+                          <button className="text-[11px] text-gray-500 underline hover:text-gray-800">
+                            Revertir
+                          </button>
+                        </form>
+                      </>
+                    ) : (
+                      <>
+                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800">
+                          Pendiente de verificar
+                        </span>
+                        <form action={verifyGoal}>
+                          <button className="text-[11px] font-medium text-gray-700 underline hover:text-gray-900">
+                            Verificar
+                          </button>
+                        </form>
+                      </>
+                    )}
+                  </div>
+                )}
+                {g.evidence_path && (
+                  <div className="mt-1">
+                    <ViewEvidenceLink goalId={g.id} />
+                  </div>
+                )}
+                {g.evidence_note && (
+                  <p className="mt-1 text-xs text-gray-500">Nota: {g.evidence_note}</p>
+                )}
+                <GoalEvidenceForm action={attachEvidence} defaultNote={g.evidence_note} />
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <span

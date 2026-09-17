@@ -1,5 +1,6 @@
 "use server";
 
+import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -73,10 +74,24 @@ export async function addDevelopmentGoal(planId: string, revalidateTo: string, f
 
 export async function deleteDevelopmentGoal(goalId: string, revalidateTo: string) {
   const supabase = await createClient();
+
+  const { data: goal } = await supabase
+    .from("development_plan_goals")
+    .select("evidence_path")
+    .eq("id", goalId)
+    .maybeSingle();
+
   const { error } = await supabase.from("development_plan_goals").delete().eq("id", goalId);
 
   if (error) {
     console.error("deleteDevelopmentGoal error:", error.message);
+  } else if (goal?.evidence_path) {
+    const { error: storageError } = await supabase.storage
+      .from("development-plan-evidence")
+      .remove([goal.evidence_path]);
+    if (storageError) {
+      console.error("deleteDevelopmentGoal storage cleanup error:", storageError.message);
+    }
   }
 
   revalidatePath(revalidateTo);
@@ -109,6 +124,137 @@ export async function updateDevelopmentGoalStatus(
   if (error) {
     redirect(
       `${revalidateTo}?error=${encodeURIComponent("No se pudo actualizar la meta: " + error.message)}`
+    );
+  }
+
+  revalidatePath(revalidateTo);
+  revalidatePath(PATH);
+  redirect(revalidateTo);
+}
+
+
+// Adjunta o actualiza la evidencia de una meta (archivo y/o nota de texto,
+// ambos opcionales e independientes de `status`). Reutilizada tanto en la
+// vista de gestion como en el autoservicio -- la RLS de
+// development_plan_goals_update decide quien puede tocarla (mismo criterio
+// que updateDevelopmentGoalStatus). Subir o cambiar evidence_path/
+// evidence_note despues de verificada des-verifica automaticamente la meta
+// (trigger clear_development_goal_verification_trigger, migracion 0042).
+export async function attachDevelopmentGoalEvidence(
+  goalId: string,
+  revalidateTo: string,
+  formData: FormData
+) {
+  const supabase = await createClient();
+
+  const note = (String(formData.get("evidence_note") ?? "").trim() || null) as
+    | string
+    | null;
+  const file = formData.get("evidence_file") as File | null;
+
+  const update: { evidence_note: string | null; evidence_path?: string } = {
+    evidence_note: note,
+  };
+
+  if (file && file.size > 0) {
+    const { data: goal } = await supabase
+      .from("development_plan_goals")
+      .select("tenant_id, evidence_path, development_plans(employee_id)")
+      .eq("id", goalId)
+      .maybeSingle();
+
+    if (!goal) {
+      redirect(`${revalidateTo}?error=${encodeURIComponent("Meta no encontrada")}`);
+    }
+
+    const employeeId = (
+      goal.development_plans as unknown as { employee_id: string } | null
+    )?.employee_id;
+
+    if (!employeeId) {
+      redirect(
+        `${revalidateTo}?error=${encodeURIComponent(
+          "No se pudo determinar el empleado de esta meta"
+        )}`
+      );
+    }
+
+    const safeName = (file.name || "evidencia").replace(/[^a-zA-Z0-9._-]/g, "_");
+    const storagePath = `${goal.tenant_id}/${employeeId}/${goalId}-${randomUUID()}-${safeName}`;
+    const arrayBuffer = await file.arrayBuffer();
+
+    const { error: uploadError } = await supabase.storage
+      .from("development-plan-evidence")
+      .upload(storagePath, arrayBuffer, {
+        contentType: file.type || "application/octet-stream",
+        upsert: false,
+      });
+
+    if (uploadError) {
+      redirect(
+        `${revalidateTo}?error=${encodeURIComponent(
+          "No se pudo subir la evidencia: " + uploadError.message
+        )}`
+      );
+    }
+
+    // Reemplaza cualquier evidencia anterior -- se borra despues de subir
+    // la nueva para no dejar la meta sin evidencia si la subida fallara.
+    if (goal.evidence_path) {
+      await supabase.storage.from("development-plan-evidence").remove([goal.evidence_path]);
+    }
+
+    update.evidence_path = storagePath;
+  }
+
+  const { error } = await supabase
+    .from("development_plan_goals")
+    .update(update)
+    .eq("id", goalId);
+
+  if (error) {
+    redirect(
+      `${revalidateTo}?error=${encodeURIComponent(
+        "No se pudo guardar la evidencia: " + error.message
+      )}`
+    );
+  }
+
+  revalidatePath(revalidateTo);
+  revalidatePath(PATH);
+  redirect(revalidateTo);
+}
+
+// Confirmacion de gestion (verify_development_goal, migracion 0042): un
+// empleado nunca puede autoverificarse -- la funcion valida
+// my_manager_tenant_ids() en el propio RPC, defensa en profundidad
+// independiente de que boton se muestre en cada vista.
+export async function verifyDevelopmentGoal(goalId: string, revalidateTo: string) {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("verify_development_goal", { p_goal_id: goalId });
+
+  if (error) {
+    redirect(
+      `${revalidateTo}?error=${encodeURIComponent("No se pudo verificar la meta: " + error.message)}`
+    );
+  }
+
+  revalidatePath(revalidateTo);
+  revalidatePath(PATH);
+  redirect(revalidateTo);
+}
+
+// Revierte una verificacion hecha por error, sin depender de editar
+// status/evidencia (que ya la limpiarian automaticamente via trigger).
+export async function unverifyDevelopmentGoal(goalId: string, revalidateTo: string) {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("unverify_development_goal", { p_goal_id: goalId });
+
+  if (error) {
+    redirect(
+      `${revalidateTo}?error=${encodeURIComponent(
+        "No se pudo revertir la verificacion: " + error.message
+      )}`
     );
   }
 

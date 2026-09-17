@@ -93,6 +93,26 @@ export default async function AnalyticsPage() {
   const activeCount = (employees ?? []).filter((e) => e.status === "active").length;
   const maxHeadcountEvent = Math.max(1, ...monthKeys.map((k) => Math.max(hires[k], exits[k])));
 
+  // Indice de rotacion: bajas en el periodo / promedio de empleados
+  // activos (inicio + fin, entre 2) x 100. "Activos al inicio" se
+  // aproxima hacia atras desde el conteo activo de hoy (activeCount -
+  // altas del periodo + bajas del periodo) en vez de reconstruir el
+  // headcount historico exacto dia por dia -- misma filosofia de
+  // calculo de referencia que el resto del sistema (ver
+  // calculate_overtime_hours, get_vacation_balance).
+  const totalHires12m = monthKeys.reduce((s, k) => s + hires[k], 0);
+  const totalExits12m = monthKeys.reduce((s, k) => s + exits[k], 0);
+  const activeAtStart12m = Math.max(0, activeCount - totalHires12m + totalExits12m);
+  const avgHeadcount12m = (activeAtStart12m + activeCount) / 2;
+  const turnoverRate12m = avgHeadcount12m > 0 ? (totalExits12m / avgHeadcount12m) * 100 : 0;
+
+  const currentMonthKey = monthKeys[monthKeys.length - 1];
+  const hiresThisMonth = hires[currentMonthKey];
+  const exitsThisMonth = exits[currentMonthKey];
+  const activeAtStartMonth = Math.max(0, activeCount - hiresThisMonth + exitsThisMonth);
+  const avgHeadcountMonth = (activeAtStartMonth + activeCount) / 2;
+  const turnoverRateMonth = avgHeadcountMonth > 0 ? (exitsThisMonth / avgHeadcountMonth) * 100 : 0;
+
   const periodTotals = (periods ?? []).map((p) => {
     const rows = (entries ?? []).filter((e) => e.period_id === p.id);
     const gross = rows.reduce((s, r) => s + Number(r.gross_salary), 0);
@@ -175,6 +195,23 @@ export default async function AnalyticsPage() {
         partir de los datos ya registrados en Empleados, Bajas, Nómina y
         Asistencia.
       </p>
+
+      <div className="mt-6 grid grid-cols-2 gap-3">
+        <div className="rounded-xl border border-gray-200 bg-white p-4">
+          <p className="text-xs text-gray-500">Rotación del mes en curso</p>
+          <p className="mt-1 text-lg font-semibold text-gray-900">{turnoverRateMonth.toFixed(1)}%</p>
+          <p className="mt-1 text-[11px] text-gray-400">
+            {exitsThisMonth} baja(s) sobre un promedio de {avgHeadcountMonth.toFixed(1)} activo(s)
+          </p>
+        </div>
+        <div className="rounded-xl border border-gray-200 bg-white p-4">
+          <p className="text-xs text-gray-500">Rotación últimos 12 meses</p>
+          <p className="mt-1 text-lg font-semibold text-gray-900">{turnoverRate12m.toFixed(1)}%</p>
+          <p className="mt-1 text-[11px] text-gray-400">
+            {totalExits12m} baja(s) sobre un promedio de {avgHeadcount12m.toFixed(1)} activo(s)
+          </p>
+        </div>
+      </div>
 
       <div className="mt-6 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
         <div className="flex items-center justify-between">

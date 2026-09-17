@@ -47,7 +47,7 @@ export default async function NominaPeriodoPage({
   const { data: entries } = await supabase
     .from("payroll_entries")
     .select(
-      "id, gross_salary, sfs_employee, sfs_employer, afp_employee, afp_employer, srl_employer, infotep_employer, isr_withholding, benefits_deduction, overtime_hours_35, overtime_hours_100, overtime_pay, other_bonuses, other_deductions, net_pay, employees(full_name, national_id, bank_name, bank_account_type, bank_account_number)"
+      "id, gross_salary, sfs_employee, sfs_employer, afp_employee, afp_employer, srl_employer, infotep_employer, isr_withholding, benefits_deduction, overtime_hours_35, overtime_hours_100, overtime_pay, night_hours, night_pay, holiday_hours, holiday_pay, other_bonuses, other_deductions, net_pay, employees(full_name, national_id, bank_name, bank_account_type, bank_account_number)"
     )
     .eq("period_id", id)
     .order("created_at", { ascending: true });
@@ -64,10 +64,11 @@ export default async function NominaPeriodoPage({
       acc.isr += Number(e.isr_withholding);
       acc.benefitsDeduction += Number(e.benefits_deduction);
       acc.overtimePay += Number(e.overtime_pay);
+      acc.surchargesPay += Number(e.night_pay) + Number(e.holiday_pay);
       acc.net += Number(e.net_pay);
       return acc;
     },
-    { gross: 0, employerCost: 0, isr: 0, benefitsDeduction: 0, overtimePay: 0, net: 0 }
+    { gross: 0, employerCost: 0, isr: 0, benefitsDeduction: 0, overtimePay: 0, surchargesPay: 0, net: 0 }
   );
 
   const employeesMissingBankInfo = (entries ?? [])
@@ -154,7 +155,7 @@ export default async function NominaPeriodoPage({
         </div>
       )}
 
-      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-6">
+      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-7">
         <div className="rounded-xl border border-gray-200 bg-white p-4">
           <p className="text-xs text-gray-500">Bruto total</p>
           <p className="mt-1 text-sm font-medium text-gray-900">{currency.format(totals.gross)}</p>
@@ -176,6 +177,10 @@ export default async function NominaPeriodoPage({
           <p className="mt-1 text-sm font-medium text-gray-900">{currency.format(totals.overtimePay)}</p>
         </div>
         <div className="rounded-xl border border-gray-200 bg-white p-4">
+          <p className="text-xs text-gray-500">Recargos noct./feriado</p>
+          <p className="mt-1 text-sm font-medium text-gray-900">{currency.format(totals.surchargesPay)}</p>
+        </div>
+        <div className="rounded-xl border border-gray-200 bg-white p-4">
           <p className="text-xs text-gray-500">Neto a pagar</p>
           <p className="mt-1 text-sm font-medium text-gray-900">{currency.format(totals.net)}</p>
         </div>
@@ -194,13 +199,17 @@ export default async function NominaPeriodoPage({
         <Link href="/app/asistencia" className="underline">
           Asistencia
         </Link>{" "}
-        durante el rango del periodo. Ambas se calcularon automáticamente al
-        generar el periodo; para que cambien en un periodo abierto, ajusta el
-        origen (beneficio o marcaje) y vuelve a generar el periodo.
+        durante el rango del periodo. La columna &quot;Recargos&quot; suma el
+        recargo nocturno (+15% por hora entre 9:00pm y 7:00am) y el recargo
+        por trabajar en feriado o domingo (+100% por hora) — igual que las
+        horas extra, calculados a partir del marcaje y ya sumados al bruto.
+        Todas se calcularon automáticamente al generar el periodo; para que
+        cambien en un periodo abierto, ajusta el origen (beneficio o marcaje)
+        y vuelve a generar el periodo.
       </p>
 
       <div className="mt-6 overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
-        <table className="w-full min-w-[1050px] text-sm">
+        <table className="w-full min-w-[1150px] text-sm">
           <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500">
             <tr>
               <th className="px-3 py-2">Empleado</th>
@@ -210,6 +219,7 @@ export default async function NominaPeriodoPage({
               <th className="px-3 py-2 text-right">ISR</th>
               <th className="px-3 py-2 text-right">Beneficios</th>
               <th className="px-3 py-2 text-right">Horas extra</th>
+              <th className="px-3 py-2 text-right">Recargos</th>
               <th className="px-3 py-2 text-right">Bono</th>
               <th className="px-3 py-2 text-right">Deducción</th>
               <th className="px-3 py-2 text-right">Neto</th>
@@ -219,7 +229,7 @@ export default async function NominaPeriodoPage({
           <tbody className="divide-y divide-gray-100">
             {(entries ?? []).length === 0 && (
               <tr>
-                <td colSpan={11} className="px-3 py-6 text-center text-gray-500">
+                <td colSpan={12} className="px-3 py-6 text-center text-gray-500">
                   Sin entradas — ningún empleado activo tenía salario mensual
                   registrado al generar este periodo.
                 </td>
@@ -252,6 +262,14 @@ export default async function NominaPeriodoPage({
                     {(Number(e.overtime_hours_35) > 0 || Number(e.overtime_hours_100) > 0) && (
                       <span className="block text-[10px] text-gray-400">
                         {Number(e.overtime_hours_35)}h ·35% + {Number(e.overtime_hours_100)}h ·100%
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2 text-right text-gray-600">
+                    {currency.format(Number(e.night_pay) + Number(e.holiday_pay))}
+                    {(Number(e.night_hours) > 0 || Number(e.holiday_hours) > 0) && (
+                      <span className="block text-[10px] text-gray-400">
+                        {Number(e.night_hours)}h noct. + {Number(e.holiday_hours)}h fer./dom.
                       </span>
                     )}
                   </td>

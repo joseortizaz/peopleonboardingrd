@@ -15,8 +15,13 @@ import { requestBenefit, cancelBenefitRequest } from "../beneficios/actions";
 import { updateEnrollmentStatus } from "../capacitacion/actions";
 import EnrollmentStatusSelect from "../capacitacion/EnrollmentStatusSelect";
 import DownloadMaterialButton from "../capacitacion/DownloadMaterialButton";
-import { updateDevelopmentGoalStatus } from "../desarrollo/actions";
+import {
+  attachDevelopmentGoalEvidence,
+  updateDevelopmentGoalStatus,
+} from "../desarrollo/actions";
+import GoalEvidenceForm from "../desarrollo/GoalEvidenceForm";
 import GoalStatusSelect from "../desarrollo/GoalStatusSelect";
+import ViewEvidenceLink from "../desarrollo/ViewEvidenceLink";
 import { getVideoEmbedUrl } from "@/lib/video";
 import ClockActionForm from "./ClockActionForm";
 
@@ -277,7 +282,7 @@ export default async function MiEspacioPage({
     supabase
       .from("development_plans")
       .select(
-        "id, title, notes, status, created_at, development_plan_goals(id, description, target_date, status, order_index)"
+        "id, title, notes, status, created_at, development_plan_goals(id, description, target_date, status, order_index, evidence_path, evidence_note, verified_by, verified_at)"
       )
       .eq("employee_id", employee.id)
       .order("created_at", { ascending: false }),
@@ -1003,6 +1008,10 @@ export default async function MiEspacioPage({
                 target_date: string | null;
                 status: string;
                 order_index: number;
+                evidence_path: string | null;
+                evidence_note: string | null;
+                verified_by: string | null;
+                verified_at: string | null;
               }[]
             )
               .slice()
@@ -1039,6 +1048,11 @@ export default async function MiEspacioPage({
                       g.id,
                       revalidateTo
                     );
+                    const attachEvidence = attachDevelopmentGoalEvidence.bind(
+                      null,
+                      g.id,
+                      revalidateTo
+                    );
                     return (
                       <div
                         key={g.id}
@@ -1057,6 +1071,28 @@ export default async function MiEspacioPage({
                           <p className="mt-0.5 text-xs text-gray-400">
                             {g.target_date ? `Vence ${dateFmt(g.target_date)}` : "Sin fecha objetivo"}
                           </p>
+                          {g.status === "completado" && (
+                            <p className="mt-1">
+                              {g.verified_at ? (
+                                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-800">
+                                  Verificado el {dateTimeFmt(g.verified_at)}
+                                </span>
+                              ) : (
+                                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800">
+                                  Pendiente de verificar
+                                </span>
+                              )}
+                            </p>
+                          )}
+                          {g.evidence_path && (
+                            <div className="mt-1">
+                              <ViewEvidenceLink goalId={g.id} />
+                            </div>
+                          )}
+                          {g.evidence_note && (
+                            <p className="mt-1 text-xs text-gray-500">Nota: {g.evidence_note}</p>
+                          )}
+                          <GoalEvidenceForm action={attachEvidence} defaultNote={g.evidence_note} />
                         </div>
                         <div className="flex shrink-0 items-center gap-2">
                           <span

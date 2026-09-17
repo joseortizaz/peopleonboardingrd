@@ -50,6 +50,18 @@ export default async function ReglasFiscalesPage() {
 
   const typedRules = (rules ?? []) as unknown as FiscalRule[];
 
+  const { data: holidays } = await supabase
+    .from("public_holidays")
+    .select("id, date, name")
+    .order("date", { ascending: true });
+
+  const holidayDateFmt = (d: string) =>
+    new Date(d + "T00:00:00").toLocaleDateString("es-DO", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+    });
+
   return (
     <div className="mx-auto max-w-4xl px-6 py-10">
       <Link href="/app/nomina" className="text-sm text-gray-500 hover:underline">
@@ -147,6 +159,33 @@ export default async function ReglasFiscalesPage() {
             </div>
           </div>
         ))}
+      </div>
+
+      <div className="mt-8 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+        <h2 className="text-sm font-semibold text-gray-900">Días feriados</h2>
+        <p className="mt-1 text-xs text-gray-500">
+          Catálogo nacional (igual para todos los tenants) usado para calcular
+          el recargo por trabajar en feriado o domingo en Nómina. Los feriados
+          móviles (Ley 139-97) cambian de fecha cada año según lo anuncie el
+          Ministerio de Trabajo — igual que las reglas fiscales de arriba, solo
+          un Super Admin de la plataforma puede agregar el año siguiente; si
+          no tienes ese rol, puede hacerse con una sentencia SQL directa en
+          Supabase.
+        </p>
+        {(holidays ?? []).length === 0 ? (
+          <p className="mt-3 text-sm text-gray-500">
+            Aún no hay feriados registrados.
+          </p>
+        ) : (
+          <ul className="mt-4 grid grid-cols-1 gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
+            {(holidays ?? []).map((h) => (
+              <li key={h.id} className="flex justify-between border-b border-gray-100 py-1">
+                <span className="text-gray-900">{h.name}</span>
+                <span className="text-gray-500">{holidayDateFmt(h.date)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   );
